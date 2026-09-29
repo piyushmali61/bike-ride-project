@@ -21,9 +21,12 @@ android {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:common"))
+    implementation(project(":engine:audio"))
     implementation(project(":engine:session"))
     implementation(project(":bluetooth"))
     implementation(project(":security"))
+    implementation(project(":transport:local-nearby"))
+    implementation(project(":service"))
 
     // Compose
     implementation(platform(libs.compose.bom))

@@ -46,6 +46,6 @@ include(":security")
 include(":data")
 include(":service")
 
-// Phase 0 Feasibility Spikes module
-include(":spikes")
+// Unified AstraRide Application
+
 
