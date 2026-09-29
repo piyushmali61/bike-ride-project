@@ -1,0 +1,43 @@
+# Smart Intercom - Bike Ride
+
+# Gradle
+.gradle/
+build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Android
+*.apk
+*.aab
+*.dex
+*.class
+*.ap_
+*.aar
+
+# Kotlin
+*.kotlin_module
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Secrets
+*.jks
+*.keystore
+google-services.json
+
+# Node (backend)
+node_modules/
+dist/
+.env
+.env.local
+
+# Logs
+*.log

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backup rules: exclude crypto keys and secrets (Section 16.3) -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="identity_keys.xml" />
+    <exclude domain="database" path="intercom.db-journal" />
+    <exclude domain="file" path="security/" />
+</full-backup-content>

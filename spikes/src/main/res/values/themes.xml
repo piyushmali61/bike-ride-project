@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.IntercomSpikes" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:colorBackground">#FF0F1419</item>
+        <item name="android:statusBarColor">#FF0F1419</item>
+        <item name="android:navigationBarColor">#FF0F1419</item>
+    </style>
+</resources>

@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.SmartIntercom" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <!-- Dark theme default for riding (Section 17) -->
+        <item name="colorPrimary">@color/primary</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+    </style>
+</resources>

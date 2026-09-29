@@ -1,0 +1,43 @@
+<resources>
+    <string name="app_name">AstraRide Intercom</string>
+    <string name="studio_name">Mythic Bharat Studios</string>
+
+
+    <!-- Status messages (Section 17) -->
+    <string name="status_local_connected">🟢 LOCAL INTERCOM</string>
+    <string name="status_internet_connected">🟢 INTERNET INTERCOM</string>
+    <string name="status_switching">🟡 SWITCHING CONNECTION…</string>
+    <string name="status_weak_local">🟠 WEAK LOCAL LINK</string>
+    <string name="status_disconnected">🔴 CONNECTION LOST</string>
+    <string name="status_paused">⏸ PAUSED</string>
+    <string name="status_helmet_lost">🎧 HELMET DISCONNECTED</string>
+
+    <!-- Notification -->
+    <string name="notification_channel_name">Intercom Session</string>
+    <string name="notification_channel_desc">Active intercom session status</string>
+    <string name="notification_title">🏍️ Smart Intercom</string>
+    <string name="notification_local">🟢 Connected — Local</string>
+    <string name="notification_internet">🌐 Connected — Internet</string>
+    <string name="notification_switching">🟡 Switching…</string>
+    <string name="notification_searching">🔴 No connection — Searching…</string>
+
+    <!-- Actions -->
+    <string name="action_mute">Mute</string>
+    <string name="action_unmute">Unmute</string>
+    <string name="action_disconnect">Disconnect</string>
+    <string name="action_open">Open Intercom</string>
+    <string name="action_start_intercom">START INTERCOM</string>
+    <string name="action_create_connection">Create Connection</string>
+    <string name="action_join_connection">Join Connection</string>
+
+    <!-- Settings -->
+    <string name="pref_automatic">Automatic</string>
+    <string name="pref_prefer_local">Prefer Local</string>
+    <string name="pref_prefer_internet">Prefer Internet</string>
+
+    <!-- Permissions -->
+    <string name="permission_mic_rationale">Microphone is needed for hands-free intercom audio between you and your riding partner.</string>
+    <string name="permission_bt_rationale">Bluetooth is needed to route audio through your helmet headset.</string>
+    <string name="permission_location_rationale">Location is needed for local device discovery and optional GPS proximity features.</string>
+    <string name="permission_notification_rationale">Notifications keep the intercom session visible while your screen is off.</string>
+</resources>
