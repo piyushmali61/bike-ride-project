@@ -13,6 +13,7 @@ local.properties
 
 # Android
 *.apk
+!AstraRide-Intercom.apk
 *.aab
 *.dex
 *.class
