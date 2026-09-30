@@ -37,8 +37,8 @@ data class ConnectedRider(
  * 1. Google Nearby Connections (Strategy.P2P_CLUSTER) with deterministic leader tie-breaking
  * 2. Ultra-fast Local Wi-Fi & Hotspot UDP Direct Transport (Instant Call App mode)
  *
- * Guarantees instantaneous, collision-free connection between Samsung M35, Samsung S25 FE,
- * and all Android devices in the same Convoy Room with zero waiting.
+ * Guarantees instantaneous, collision-free connection across all Android devices
+ * in the same Convoy Room with zero waiting.
  */
 @Singleton
 class NearbyMeshTransport @Inject constructor(
@@ -100,7 +100,7 @@ class NearbyMeshTransport @Inject constructor(
     var onAudioFrameReceived: ((ByteArray) -> Unit)? = null
 
     private fun buildMyEndpointName(): String {
-        return "ROOM:${_currentRoom.value}|$myRiderId|${Build.MODEL}"
+        return "ROOM:${_currentRoom.value}|$myRiderId|Rider-$myRiderId"
     }
 
     private val payloadCallback = object : PayloadCallback() {
@@ -162,7 +162,7 @@ class NearbyMeshTransport @Inject constructor(
             pendingEndpoints.remove(endpointId)
             if (resolution.status.isSuccess) {
                 Timber.i("Nearby rider linked successfully to room mesh: $endpointId")
-                val riderName = "${Build.MANUFACTURER} ${Build.MODEL}"
+                val riderName = "Rider ${endpointId.takeLast(4).uppercase()}"
                 val current = _nearbyRiders.value.toMutableMap()
                 current[endpointId] = ConnectedRider(
                     endpointId = endpointId,

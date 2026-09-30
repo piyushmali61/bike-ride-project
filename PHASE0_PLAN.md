@@ -165,7 +165,7 @@ Phase 0 is mandatory. These spikes must run on **real devices** before architect
    - From a high-priority FCM push ✗ (expected)
    - From CompanionDeviceManager presence observation ✗/? 
    - From a boot receiver ✗ (expected)
-2. Test on target OEMs: Pixel, Samsung, Xiaomi, Oppo
+2. Test on target OEMs across all major Android manufacturers
 3. Test Doze behavior with active mic FGS:
    - `adb shell dumpsys deviceidle force-idle`
    - Does audio continue? Does network stay?
@@ -190,7 +190,7 @@ Phase 0 is mandatory. These spikes must run on **real devices** before architect
    - Does it improve Bluetooth routing reliability?
    - Process priority change (check OOM score)
    - Interaction with incoming cellular calls (hold/swap)
-   - OEM-specific behavior (Samsung, Xiaomi)
+   - OEM-specific background behavior
 3. Compare battery/stability with and without
 
 ### Decision Output
@@ -204,7 +204,7 @@ Phase 0 is mandatory. These spikes must run on **real devices** before architect
 | Device | Android Version | Purpose |
 |--------|----------------|---------|
 | Pixel 7/8/9 | Android 14/15 | Reference device |
-| Samsung Galaxy A/S series | Android 13+ | Popular OEM, Knox specifics |
+| Modern Tier 1 OEM series | Android 13+ | Popular OEM, OEM battery specifics |
 | Xiaomi/Redmi | Android 12+ | Aggressive battery management |
 | Oppo/Realme | Android 12+ | ColorOS specifics |
 

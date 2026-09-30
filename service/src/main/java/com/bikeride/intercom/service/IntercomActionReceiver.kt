@@ -8,7 +8,7 @@ import timber.log.Timber
 /**
  * High-reliability BroadcastReceiver for notification actions.
  * Guarantees instantaneous Mute / Unmute and End Ride response across
- * Android 12-15 and Samsung OneUI without background execution limits.
+ * Android 12-15 without background execution limits.
  */
 class IntercomActionReceiver : BroadcastReceiver() {
 

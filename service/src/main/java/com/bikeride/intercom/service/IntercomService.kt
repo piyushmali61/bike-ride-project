@@ -22,9 +22,9 @@ import javax.inject.Inject
 
 /**
  * Foreground Service guaranteeing uninterrupted full-duplex intercom
- * across Samsung OneUI (M35, S25 FE) and all Android OEM battery restrictions.
+ * across all Android OEM battery restrictions and power managers.
  * Holds partial wake-lock, registers microphone & connected device FGS types,
- * and manages hands-free voice command recognition ("Say MUTE to Mute").
+ * and manages hands-free mute controls.
  */
 @AndroidEntryPoint
 class IntercomService : Service() {

@@ -127,7 +127,7 @@ class LocalLanTransport @Inject constructor(
 
         // Periodic Broadcast Beacon (every 1200ms)
         beaconJob = scope.launch(Dispatchers.IO) {
-            val myDevice = "${Build.MANUFACTURER} ${Build.MODEL}"
+            val myDevice = "Rider $myRiderId"
             val broadcastAddresses = getBroadcastAddresses()
 
             while (isActive && isRunning) {

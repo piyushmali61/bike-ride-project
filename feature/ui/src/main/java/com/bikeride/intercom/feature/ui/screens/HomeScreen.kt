@@ -129,7 +129,7 @@ fun HomeScreen(
                                 color = Color.White
                             )
                             Text(
-                                "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}",
+                                "Universal Rider Mesh",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFF00E676)
                             )
@@ -315,7 +315,7 @@ fun HomeScreen(
                         ) {
                             // Local Rider Chip
                             RiderBadgeChip(
-                                name = "You (${Build.MODEL})",
+                                name = "You (Host)",
                                 isHost = true,
                                 isMuted = isMuted,
                                 isSpeaking = micAmplitude > 0.08f && !isMuted

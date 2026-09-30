@@ -22,7 +22,7 @@
   <img src="https://img.shields.io/badge/DOWNLOAD%20ASTRARIDE%20INTERCOM-RELEASE%20APK%20(46.9%20MB)-0284c7?style=for-the-badge&logo=android&logoColor=white" height="48" />
 </a>
 
-<p><em>Engineered and optimized for Samsung Galaxy M35, Samsung Galaxy S25 FE, and all modern Android devices worldwide (Android 10 to 15+).</em></p>
+<p><em>Engineered and optimized for all modern Android mobile devices worldwide (Android 10 to 15+).</em></p>
 
 </div>
 
@@ -33,14 +33,14 @@
 **AstraRide** is an off-grid, low-latency, full-duplex motorcycle & vehicle convoy smart intercom developed by **Mythic Bharat Studios**. It bridges local ad-hoc radio mesh and cloud connectivity into one seamless experience:
 
 1. **DUAL-ENGINE ROOM CONNECTION (LOCAL CALL + P2P MESH)**: 
-   * **Local Hotspot / Wi-Fi Call Mode**: Connect both phones to the same mobile hotspot (e.g. Samsung M35 hotspot) for **instantaneous < 2ms connection** like a local call app.
+   * **Local Hotspot / Wi-Fi Call Mode**: Connect phones to the same mobile hotspot or local Wi-Fi network for **instantaneous < 2ms connection** like a local call app.
    * **Off-Grid P2P Mesh**: Deterministic connection leader negotiation completely eliminates the "waiting for 2nd device" connection collision bug.
 2. **ZERO-GEMINI HANDS-FREE MUTE**: 
    * **Wave Glove to Mute**: Wave a riding glove 5cm over the top of the handlebar-mounted phone (Proximity Sensor) to toggle Mute/Unmute in 0.1s.
    * **"Rider Signing Off"**: In-app audio cadence spotter recognizes *"Rider signing off"* to Mute, and *"Signing on"* to Unmute.
    * **100% In-App & Standalone**: Zero system speech services used, permanently preventing Google Gemini or Google Assistant from popping up over your navigation while riding!
 3. **EARCON CONFIRMATION CHIMES**: Real-time synthesized chimes played directly into the helmet confirm mute (`480Hz → 320Hz`) and unmute (`440Hz → 880Hz`) states.
-4. **POP-UP NOTIFICATION QUICK CONTROLS**: High-reliability foreground notification with live dynamic "Mute" / "Unmute" buttons and 1-tap "End Ride" responding instantly across Android 12–15 and Samsung OneUI.
+4. **POP-UP NOTIFICATION QUICK CONTROLS**: High-reliability foreground notification with live dynamic "Mute" / "Unmute" buttons and 1-tap "End Ride" responding instantly across Android 12–15.
 5. **CLOUD WEBRTC BACKBONE**: Encrypted unordered WebRTC audio channel via secure signaling when distance opens between riders.
 6. **ZERO-INTERRUPTION HANDOVER**: Proprietary state machine arbitrates the cleanest path in real time without audio drops.
 
@@ -53,8 +53,8 @@ Connect 2 or more bikers into a unified, full-duplex intercom cluster:
 ```mermaid
 graph TD
     subgraph "Dual-Engine Convoy Room"
-        Biker1["🏍️ Rider 1 (Host)<br/>Samsung M35"] <-->|Local UDP Call / Nearby Mesh| Biker2["🏍️ Rider 2<br/>Samsung S25 FE"]
-        Biker1 <-->|Local UDP Call / Nearby Mesh| Biker3["🏍️ Rider 3<br/>Android Device"]
+        Biker1["🏍️ Rider 1 (Host)<br/>Android Device 1"] <-->|Local UDP Call / Nearby Mesh| Biker2["🏍️ Rider 2<br/>Android Device 2"]
+        Biker1 <-->|Local UDP Call / Nearby Mesh| Biker3["🏍️ Rider 3<br/>Android Device 3"]
         Biker2 <-->|Local UDP Call / Nearby Mesh| Biker3
     end
 ```
@@ -95,7 +95,7 @@ Riding at highway speeds with thick leather riding gloves makes touching screens
 To ensure your phone's battery lasts throughout long touring days without draining:
 - **Intelligent Voice Activity Detection (VAD)**: Dynamically detects when you are speaking. When you are quiet, high-power RF transmission is automatically paused.
 - **Discontinuous Transmission (DTX)**: Transmits lightweight presence pings only once every 800ms during silence, reducing RF antenna power by **70–80%**.
-- **OLED Pure Black (#000000) Mode**: Turns off individual display pixels on Super AMOLED (Samsung M35) and Dynamic AMOLED 2X (Samsung S25 FE) screens, drawing minimal display current.
+- **OLED Pure Black (#000000) Mode**: Turns off individual display pixels on AMOLED and OLED screens, drawing minimal display current.
 - **Adaptive WakeLock Duty-Cycling**: CPU WakeLock is engaged *only* during active ride sessions and immediately released when stopped.
 - **Auto-Search Timeout**: If searching for a peer without linking, radar auto-sleeps after 90 seconds to prevent pocket battery drain.
 
@@ -118,7 +118,7 @@ To ensure your phone's battery lasts throughout long touring days without draini
 | **Language & Build** | **Kotlin 2.1.0**, Android Gradle Plugin 8.7.3, KSP |
 | **UI Framework** | **Jetpack Compose**, Material 3 OLED Dark Palette (High-Contrast) |
 | **Power Management** | Hardware VAD + DTX silence suppression, Partial WakeLock, AMOLED black HUD |
-| **Voice Recognition** | Offline `SpeechRecognizer` + continuous acoustic spotter |
+| **Voice Recognition** | In-App Audio Phrase Spotter + Proximity Glove Wave (Zero Gemini popups) |
 | **State & Concurrency** | Reactive `StateFlow`, Kotlin Coroutines, Unidirectional Data Flow |
 | **Dependency Injection** | **Google Dagger Hilt** |
 | **Off-Grid Transport** | **Google Nearby Connections** (`Strategy.P2P_CLUSTER`) & raw Wi-Fi Direct UDP mesh |
@@ -136,7 +136,7 @@ To ensure your phone's battery lasts throughout long touring days without draini
 
 ### 2. Quick Install via USB (ADB)
 ```powershell
-# Install on Phone 1 (e.g. Samsung M35) and Phone 2 (e.g. Samsung S25 FE)
+# Install on Phone 1 and Phone 2
 adb install -r "AstraRide-Intercom.apk"
 ```
 
