@@ -60,6 +60,7 @@ class NearbyMeshTransport @Inject constructor(
     private val serviceId: String get() = context.packageName
 
     val myRiderId: String = UUID.randomUUID().toString().take(6).uppercase()
+    var myRiderName: String = "Rider"
 
     private val client = Nearby.getConnectionsClient(context)
 
@@ -91,6 +92,7 @@ class NearbyMeshTransport @Inject constructor(
 
     private val _emergencyAlert = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     val emergencyAlert: SharedFlow<Unit> = _emergencyAlert.asSharedFlow()
+    private var lastHornReceivedTime = 0L
 
     private var pingJob: Job? = null
     private var mergeJob: Job? = null
@@ -100,7 +102,8 @@ class NearbyMeshTransport @Inject constructor(
     var onAudioFrameReceived: ((ByteArray) -> Unit)? = null
 
     private fun buildMyEndpointName(): String {
-        return "ROOM:${_currentRoom.value}|$myRiderId|Rider-$myRiderId"
+        val displayName = myRiderName.ifBlank { "Rider-$myRiderId" }
+        return "ROOM:${_currentRoom.value}|$myRiderId|$displayName"
     }
 
     private val payloadCallback = object : PayloadCallback() {
@@ -134,8 +137,12 @@ class NearbyMeshTransport @Inject constructor(
                     }
                 }
                 PKT_HORN -> {
-                    Timber.w("Emergency horn alert packet received from $endpointId!")
-                    _emergencyAlert.tryEmit(Unit)
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastHornReceivedTime > 1800L) {
+                        lastHornReceivedTime = now
+                        Timber.w("Emergency horn alert packet received from $endpointId!")
+                        _emergencyAlert.tryEmit(Unit)
+                    }
                 }
                 PKT_MUTE -> {
                     if (bytes.size > 1) {
@@ -234,6 +241,15 @@ class NearbyMeshTransport @Inject constructor(
         }
     }
 
+    fun setRiderName(name: String) {
+        val sanitized = name.trim().take(20)
+        if (sanitized.isNotBlank()) {
+            myRiderName = sanitized
+            localLanTransport.myRiderName = sanitized
+            Timber.i("Rider name updated to: $sanitized")
+        }
+    }
+
     /**
      * Starts multi-biker mesh:
      * Simultaneous Google Nearby Connections cluster + Local Wi-Fi/Hotspot UDP Call discovery.
@@ -250,7 +266,11 @@ class NearbyMeshTransport @Inject constructor(
             onAudioFrameReceived?.invoke(frame)
         }
         localLanTransport.onEmergencyHornReceived = {
-            _emergencyAlert.tryEmit(Unit)
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastHornReceivedTime > 1800L) {
+                lastHornReceivedTime = now
+                _emergencyAlert.tryEmit(Unit)
+            }
         }
         localLanTransport.start(scope, targetRoom)
 
@@ -349,8 +369,16 @@ class NearbyMeshTransport @Inject constructor(
         localLanTransport.sendEmergencyHornAlert()
         val nearbyEndpoints = _nearbyRiders.value.keys.toList()
         if (nearbyEndpoints.isNotEmpty()) {
-            val packet = byteArrayOf(PKT_HORN)
-            client.sendPayload(nearbyEndpoints, Payload.fromBytes(packet))
+            val payloadText = "|${_currentRoom.value}|$myRiderId"
+            val payloadBytes = payloadText.toByteArray(Charsets.UTF_8)
+            val packet = ByteArray(1 + payloadBytes.size)
+            packet[0] = PKT_HORN
+            System.arraycopy(payloadBytes, 0, packet, 1, payloadBytes.size)
+            try {
+                client.sendPayload(nearbyEndpoints, Payload.fromBytes(packet))
+            } catch (e: Exception) {
+                Timber.w(e, "Error sending Nearby horn alert")
+            }
         }
     }
 

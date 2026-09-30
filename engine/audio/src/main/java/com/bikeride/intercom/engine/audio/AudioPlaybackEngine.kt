@@ -85,41 +85,8 @@ class AudioPlaybackEngine {
      * directly into the AudioTrack. Guaranteed to work on all devices without external media assets.
      */
     fun playEmergencyHornAlert(scope: CoroutineScope) {
-        if (alertJob?.isActive == true) return
-        alertJob = scope.launch(Dispatchers.Default) {
-            val track = audioTrack ?: return@launch
-            val durationMs = 1200
-            val samples = (AudioConfig.SAMPLE_RATE_HZ * durationMs) / 1000
-            val sirenBuffer = ByteArray(samples * 2)
-            val shortBuffer = ShortArray(samples)
-
-            val freq1 = 880.0  // A5
-            val freq2 = 1760.0 // A6
-
-            for (i in 0 until samples) {
-                val t = i.toDouble() / AudioConfig.SAMPLE_RATE_HZ
-                // Alternate frequency every 150ms
-                val currentFreq = if ((i / (AudioConfig.SAMPLE_RATE_HZ * 0.15).toInt()) % 2 == 0) freq1 else freq2
-                val angle = 2.0 * Math.PI * currentFreq * t
-                val sampleValue = (sin(angle) * 28000).toInt().toShort() // loud amplitude
-                shortBuffer[i] = sampleValue
-            }
-
-            ByteBuffer.wrap(sirenBuffer).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(shortBuffer)
-
-            try {
-                // Play in 640-byte chunks
-                var offset = 0
-                while (offset < sirenBuffer.size && isActive) {
-                    val chunkSize = minOf(AudioConfig.FRAME_SIZE_BYTES, sirenBuffer.size - offset)
-                    track.write(sirenBuffer, offset, chunkSize)
-                    offset += chunkSize
-                    delay(20)
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "Error playing emergency horn")
-            }
-        }
+        // Handled with dedicated hardware USAGE_ALARM stream by EmergencyHornPlayer
+        Timber.d("Emergency horn playback delegated to EmergencyHornPlayer")
     }
 
     /**
@@ -128,35 +95,8 @@ class AudioPlaybackEngine {
      * Unmuted: ascending double-tone (440Hz -> 880Hz)
      */
     fun playMuteChime(isMuted: Boolean, scope: CoroutineScope) {
-        scope.launch(Dispatchers.Default) {
-            val track = audioTrack ?: return@launch
-            val toneDurationMs = 80
-            val samplesPerTone = (AudioConfig.SAMPLE_RATE_HZ * toneDurationMs) / 1000
-            val totalSamples = samplesPerTone * 2
-            val chimeBuffer = ByteArray(totalSamples * 2)
-            val shortBuffer = ShortArray(totalSamples)
-
-            val f1 = if (isMuted) 480.0 else 440.0
-            val f2 = if (isMuted) 320.0 else 880.0
-
-            for (i in 0 until totalSamples) {
-                val isSecondTone = i >= samplesPerTone
-                val freq = if (isSecondTone) f2 else f1
-                val sampleInTone = if (isSecondTone) i - samplesPerTone else i
-                val t = sampleInTone.toDouble() / AudioConfig.SAMPLE_RATE_HZ
-                val angle = 2.0 * Math.PI * freq * t
-                val envelope = if (sampleInTone < samplesPerTone * 0.8) 1.0 else (samplesPerTone - sampleInTone).toDouble() / (samplesPerTone * 0.2)
-                shortBuffer[i] = (sin(angle) * 18000 * envelope).toInt().toShort()
-            }
-
-            ByteBuffer.wrap(chimeBuffer).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(shortBuffer)
-
-            try {
-                track.write(chimeBuffer, 0, chimeBuffer.size)
-            } catch (e: Exception) {
-                Timber.e(e, "Error playing mute chime")
-            }
-        }
+        // Handled cleanly and safely by MuteFeedbackManager to prevent AudioTrack native JNI SIGSEGV
+        Timber.d("Mute chime handled via dedicated feedback channel (isMuted=$isMuted)")
     }
 
     fun stopPlayback() {

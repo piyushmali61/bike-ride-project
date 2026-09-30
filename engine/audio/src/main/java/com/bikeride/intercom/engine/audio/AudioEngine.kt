@@ -10,7 +10,10 @@ import javax.inject.Singleton
  * Top-level audio engine combining real-time capture and playback.
  */
 @Singleton
-class AudioEngine @Inject constructor() {
+class AudioEngine @Inject constructor(
+    private val emergencyHornPlayer: EmergencyHornPlayer,
+    private val muteFeedbackManager: MuteFeedbackManager
+) {
 
     val capture = AudioCaptureEngine()
     val playback = AudioPlaybackEngine()
@@ -33,9 +36,7 @@ class AudioEngine @Inject constructor() {
 
     fun setMuted(muted: Boolean, scope: CoroutineScope? = null) {
         capture.setMuted(muted)
-        scope?.let {
-            playback.playMuteChime(muted, it)
-        }
+        muteFeedbackManager.playMuteFeedback(muted)
     }
 
     fun setVolumeBoost(multiplier: Float) {
@@ -46,11 +47,11 @@ class AudioEngine @Inject constructor() {
         playback.playAudioFrame(frame)
     }
 
-    fun playEmergencyHorn(scope: CoroutineScope) {
-        playback.playEmergencyHornAlert(scope)
+    fun playEmergencyHorn(scope: CoroutineScope? = null) {
+        emergencyHornPlayer.playEmergencyAlert()
     }
 
-    fun playMuteChime(muted: Boolean, scope: CoroutineScope) {
-        playback.playMuteChime(muted, scope)
+    fun playMuteChime(muted: Boolean, scope: CoroutineScope? = null) {
+        muteFeedbackManager.playMuteFeedback(muted)
     }
 }

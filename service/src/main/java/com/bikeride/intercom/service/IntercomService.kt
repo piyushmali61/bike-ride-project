@@ -57,6 +57,7 @@ class IntercomService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main + coroutineExceptionHandler)
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
     private val binder = LocalBinder()
 
     inner class LocalBinder : Binder() {
@@ -97,8 +98,16 @@ class IntercomService : Service() {
                 acquire()
             }
             Timber.i("WifiLock acquired for motorcycle ride (mode: $lockMode)")
+
+            // Acquire MulticastLock: Essential on Android to prevent the kernel from dropping
+            // incoming UDP broadcast packets on Wi-Fi and mobile hotspots when the screen is off.
+            multicastLock = wm.createMulticastLock("AstraRide::MulticastLock").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+            Timber.i("MulticastLock acquired to keep Hotspot UDP communication alive")
         } catch (e: Exception) {
-            Timber.e(e, "Failed to acquire wifi lock")
+            Timber.e(e, "Failed to acquire wifi/multicast lock")
         }
     }
 
@@ -129,7 +138,7 @@ class IntercomService : Service() {
             }
         }
 
-        // Emergency Horn listener (MUTE is strictly manual via UI button so speech NEVER cuts audio)
+        // Hands-Free Gesture & Horn Listener
         voiceCommandDetector.onCommandRecognized = { command ->
             when (command) {
                 VoiceCommand.HORN -> {
@@ -138,8 +147,8 @@ class IntercomService : Service() {
                     meshTransport.sendEmergencyHornAlert()
                 }
                 VoiceCommand.MUTE, VoiceCommand.UNMUTE -> {
-                    // Do NOT auto-mute: rider speech must NEVER be muted automatically while talking
-                    Timber.d("Auto-mute ignored to protect active conversation")
+                    Timber.i("Hands-Free Zero-Touch MUTE triggered via sensor gesture")
+                    toggleMuteFromAction()
                 }
             }
         }
@@ -225,6 +234,9 @@ class IntercomService : Service() {
             if (it.isHeld) it.release()
         }
         wifiLock?.let {
+            if (it.isHeld) it.release()
+        }
+        multicastLock?.let {
             if (it.isHeld) it.release()
         }
         stopForeground(STOP_FOREGROUND_REMOVE)

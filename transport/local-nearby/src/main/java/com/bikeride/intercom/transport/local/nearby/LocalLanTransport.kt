@@ -47,6 +47,7 @@ class LocalLanTransport @Inject constructor(
     }
 
     val myRiderId: String = UUID.randomUUID().toString().take(6).uppercase()
+    var myRiderName: String = "Rider"
 
     private val _connectedLanPeers = MutableStateFlow<Map<String, LanPeer>>(emptyMap())
     val connectedLanPeers: StateFlow<Map<String, LanPeer>> = _connectedLanPeers.asStateFlow()
@@ -54,6 +55,7 @@ class LocalLanTransport @Inject constructor(
     private val peerLastSeen = ConcurrentHashMap<String, Long>()
     private var cachedLocalAddresses: Set<InetAddress> = emptySet()
     private var lastAddressCacheTime = 0L
+    private var lastHornReceivedTime = 0L
 
     private var socket: DatagramSocket? = null
     private var receiveJob: Job? = null
@@ -127,9 +129,24 @@ class LocalLanTransport @Inject constructor(
                         val muted = (data[1] == 1.toByte())
                         updatePeerMute(senderAddress.hostAddress ?: "", muted)
                     } else if (data[0] == PKT_HORN) {
-                        val key = senderAddress.hostAddress ?: "$senderAddress"
-                        peerLastSeen[key] = SystemClock.elapsedRealtime()
-                        onEmergencyHornReceived?.invoke()
+                        if (len > 1) {
+                            val payloadStr = String(data, 1, len - 1)
+                            val parts = payloadStr.split("|")
+                            if (parts.size >= 3) {
+                                val pktRoom = parts[1]
+                                val pktSenderId = parts[2]
+                                if (pktSenderId == myRiderId) continue
+                                if (!pktRoom.equals(currentRoom, ignoreCase = true)) continue
+                            }
+                        }
+                        val now = SystemClock.elapsedRealtime()
+                        if (now - lastHornReceivedTime > 1800L) {
+                            lastHornReceivedTime = now
+                            val key = senderAddress.hostAddress ?: "$senderAddress"
+                            peerLastSeen[key] = now
+                            Timber.i("Emergency HORN packet received from $senderAddress for room [$currentRoom]")
+                            onEmergencyHornReceived?.invoke()
+                        }
                     }
                 } catch (e: Exception) {
                     if (isRunning) {
@@ -141,7 +158,7 @@ class LocalLanTransport @Inject constructor(
 
         // Periodic Broadcast & Unicast Beacon (every 1200ms)
         beaconJob = scope.launch(Dispatchers.IO) {
-            val myDevice = "Rider $myRiderId"
+            val myDevice = myRiderName.ifBlank { "Rider $myRiderId" }
 
             while (isActive && isRunning) {
                 val broadcastAddresses = getBroadcastAddresses()
@@ -260,15 +277,50 @@ class LocalLanTransport @Inject constructor(
     }
 
     fun sendEmergencyHornAlert() {
-        val peers = _connectedLanPeers.value.values
-        if (peers.isEmpty() || !isRunning) return
-        val packetData = byteArrayOf(PKT_HORN)
-        for (peer in peers) {
-            try {
-                val packet = DatagramPacket(packetData, packetData.size, peer.address, peer.port)
-                socket?.send(packet)
+        val currentPeers = _connectedLanPeers.value.values.toList()
+        val broadcastAddrs = getBroadcastAddresses()
+        val payloadText = "|$currentRoom|$myRiderId"
+        val payloadBytes = payloadText.toByteArray(Charsets.UTF_8)
+        val packetData = ByteArray(1 + payloadBytes.size)
+        packetData[0] = PKT_HORN
+        System.arraycopy(payloadBytes, 0, packetData, 1, payloadBytes.size)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val liveSocket = socket ?: try {
+                DatagramSocket().apply { broadcast = true }
             } catch (e: Exception) {
-                // ignore
+                null
+            } ?: return@launch
+
+            val isTempSocket = (socket == null)
+            try {
+                // Send a 4-packet burst (35ms interval) to guarantee delivery over lossy Wi-Fi/Hotspots
+                for (burst in 0 until 4) {
+                    // 1. Broadcast to all subnets
+                    for (bcast in broadcastAddrs) {
+                        try {
+                            val packet = DatagramPacket(packetData, packetData.size, bcast, UDP_PORT)
+                            liveSocket.send(packet)
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    }
+                    // 2. Direct Unicast to all connected LAN peers
+                    for (peer in currentPeers) {
+                        try {
+                            val packet = DatagramPacket(packetData, packetData.size, peer.address, peer.port)
+                            liveSocket.send(packet)
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    }
+                    delay(35)
+                }
+                Timber.i("Emergency horn burst broadcasted for room [$currentRoom]")
+            } finally {
+                if (isTempSocket) {
+                    try { liveSocket.close() } catch (e: Exception) {}
+                }
             }
         }
     }

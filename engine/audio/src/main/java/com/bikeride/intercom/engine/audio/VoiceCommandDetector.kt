@@ -11,10 +11,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import timber.log.Timber
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 import kotlin.math.sqrt
 
 enum class VoiceCommand {
@@ -26,15 +25,13 @@ enum class VoiceCommand {
 /**
  * Motorcycle Hands-Free Control Engine.
  *
- * 100% OFFLINE, PRIVATE, AND STANDALONE.
- * DOES NOT USE Android's system SpeechRecognizer, completely preventing Google Gemini
- * or Google Assistant from popping up on the rider's screen while riding.
+ * 100% OFFLINE, PRIVATE, AND TOUCH-FREE.
+ * Allows riders wearing thick riding gloves to mute/unmute audio without touching the phone screen:
+ * 1. Glove Wave over phone top (< 6cm proximity wave).
+ * 2. Mount / Handlebar Double-Tap (quick double tap on the phone mount/handlebar).
  *
- * Features:
- * 1. "Rider Signing Off" / "Signing On" In-App Audio Phrase Cadence Spotter:
- *    Analyzes raw 16kHz PCM audio frames directly in-memory.
- * 2. Proximity Sensor Wave-to-Mute:
- *    Riders can simply wave a glove 5-10cm over the top of the handlebar phone to toggle mute.
+ * Safe: Speech NEVER automatically cuts audio (prevents accidental mute while talking).
+ * Completely avoids Android SpeechRecognizer to eliminate Google Assistant/Gemini popups.
  */
 @Singleton
 class VoiceCommandDetector @Inject constructor(
@@ -43,23 +40,23 @@ class VoiceCommandDetector @Inject constructor(
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
     private val proximitySensor: Sensor? = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+    private val accelerometer: Sensor? = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
-    private val _isVoiceControlEnabled = MutableStateFlow(false)
-    val isVoiceControlEnabled: StateFlow<Boolean> = _isVoiceControlEnabled.asStateFlow()
+    private val _isHandsFreeControlEnabled = MutableStateFlow(true)
+    val isVoiceControlEnabled: StateFlow<Boolean> = _isHandsFreeControlEnabled.asStateFlow()
 
-    private val _isProximityWaveEnabled = MutableStateFlow(false)
-    val isProximityWaveEnabled: StateFlow<Boolean> = _isProximityWaveEnabled.asStateFlow()
-
-    private val _lastDetectedCommand = MutableStateFlow<String?>(null)
+    private val _lastDetectedCommand = MutableStateFlow<String?>("READY (WAVE OR DOUBLE-TAP)")
     val lastDetectedCommand: StateFlow<String?> = _lastDetectedCommand.asStateFlow()
 
     var onCommandRecognized: ((VoiceCommand) -> Unit)? = null
 
     private var lastTriggerTimestamp = 0L
+    private var lastTapTimestamp = 0L
+    private var tapSpikeCount = 0
     private var isListening = false
 
     fun setVoiceControlEnabled(enabled: Boolean) {
-        _isVoiceControlEnabled.value = enabled
+        _isHandsFreeControlEnabled.value = enabled
         if (!enabled) {
             stopListening()
         } else {
@@ -67,19 +64,18 @@ class VoiceCommandDetector @Inject constructor(
         }
     }
 
-    fun setProximityWaveEnabled(enabled: Boolean) {
-        _isProximityWaveEnabled.value = enabled
-    }
-
     fun startListening() {
         if (isListening) return
         isListening = true
 
-        if (_isProximityWaveEnabled.value) {
-            proximitySensor?.let {
-                sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
-                Timber.i("Proximity sensor registered")
-            }
+        proximitySensor?.let {
+            sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+            Timber.i("Proximity Wave-to-Mute sensor registered")
+        }
+
+        accelerometer?.let {
+            sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+            Timber.i("Double-Tap Mount sensor registered")
         }
     }
 
@@ -89,37 +85,60 @@ class VoiceCommandDetector @Inject constructor(
         try {
             sensorManager?.unregisterListener(this)
         } catch (e: Exception) {
-            Timber.e(e, "Error unregistering proximity sensor")
+            Timber.e(e, "Error unregistering sensors")
         }
     }
 
-    /**
-     * Proximity Sensor Event: Detects a wave of the motorcycle glove over the top of the phone.
-     */
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event == null || !_isProximityWaveEnabled.value || !_isVoiceControlEnabled.value) return
-        if (event.sensor.type != Sensor.TYPE_PROXIMITY) return
-
-        val distance = event.values[0]
-        val maxRange = proximitySensor?.maximumRange ?: 5f
-        val isNear = distance < maxRange && distance < 5f
+        if (event == null || !_isHandsFreeControlEnabled.value) return
 
         val now = SystemClock.elapsedRealtime()
-        if (isNear && (now - lastTriggerTimestamp > 2000L)) {
-            lastTriggerTimestamp = now
-            _lastDetectedCommand.value = "GLOVE WAVE"
-            Timber.i("Hands-Free Wave Detected: Toggling Mute (Proximity)")
-            onCommandRecognized?.invoke(VoiceCommand.MUTE)
+
+        // 1. Proximity Sensor: Glove Wave 5-10cm over top of phone
+        if (event.sensor.type == Sensor.TYPE_PROXIMITY) {
+            val distance = event.values[0]
+            val maxRange = proximitySensor?.maximumRange ?: 5f
+            val isNear = distance < maxRange && distance < 6f
+
+            if (isNear && (now - lastTriggerTimestamp > 1800L)) {
+                lastTriggerTimestamp = now
+                _lastDetectedCommand.value = "GLOVE WAVE MUTE"
+                Timber.i("Hands-Free Glove Wave Detected: Toggling Mute")
+                onCommandRecognized?.invoke(VoiceCommand.MUTE)
+            }
+        }
+
+        // 2. Accelerometer: Handlebar / Mount Double-Tap
+        if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+            val x = event.values[0]
+            val y = event.values[1]
+            val z = event.values[2]
+            val gTotal = sqrt(x * x + y * y + z * z)
+            val deltaG = abs(gTotal - SensorManager.GRAVITY_EARTH)
+
+            // Detect sharp vibration spike (> 14 m/s² delta)
+            if (deltaG > 14.0f) {
+                val interval = now - lastTapTimestamp
+                if (interval in 100..450) {
+                    tapSpikeCount++
+                    if (tapSpikeCount >= 2 && (now - lastTriggerTimestamp > 1800L)) {
+                        lastTriggerTimestamp = now
+                        tapSpikeCount = 0
+                        _lastDetectedCommand.value = "DOUBLE-TAP MUTE"
+                        Timber.i("Hands-Free Mount Double-Tap Detected: Toggling Mute")
+                        onCommandRecognized?.invoke(VoiceCommand.MUTE)
+                    }
+                } else if (interval > 450) {
+                    tapSpikeCount = 1
+                }
+                lastTapTimestamp = now
+            }
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
-    /**
-     * In-App Audio Frame Cadence Spotter.
-     * Speech must NEVER automatically mute the rider while talking.
-     */
     fun processAudioFrame(frame: ByteArray, isCurrentlyMuted: Boolean) {
-        // Disabled: Talking should never automatically mute the rider's audio or drop calls.
+        // Disabled: Rider speech must NEVER automatically mute audio while talking
     }
 }

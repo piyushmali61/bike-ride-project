@@ -32,17 +32,26 @@
 
 **AstraRide** is an off-grid, low-latency, full-duplex motorcycle & vehicle convoy smart intercom developed by **Mythic Bharat Studios**. It bridges local ad-hoc radio mesh and cloud connectivity into one seamless experience:
 
-1. **DUAL-ENGINE ROOM CONNECTION (LOCAL CALL + P2P MESH)**: 
-   * **Local Hotspot / Wi-Fi Call Mode**: Connect phones to the same mobile hotspot or local Wi-Fi network for **instantaneous < 2ms connection** like a local call app.
-   * **Off-Grid P2P Mesh**: Deterministic connection leader negotiation completely eliminates the "waiting for 2nd device" connection collision bug.
-2. **CONTINUOUS FULL-DUPLEX CALL (ZERO AUTO-CUT / ZERO AUTO-MUTE)**: 
-   * **Uninterrupted Audio Stream**: Speech is never clipped, cut off, or automatically muted while talking.
-   * **100% Reliable Manual Mute**: Big tactile on-screen Mute toggle and status bar notification quick button.
-   * **No False Triggering**: No background speech recognition interfering with or muting active conversations.
-3. **EARCON CONFIRMATION CHIMES**: Real-time synthesized chimes played directly into the helmet confirm mute (`480Hz → 320Hz`) and unmute (`440Hz → 880Hz`) states.
-4. **POP-UP NOTIFICATION QUICK CONTROLS**: High-reliability foreground notification with live dynamic "Mute" / "Unmute" buttons and 1-tap "End Ride" responding instantly across Android 12–15.
-5. **CLOUD WEBRTC BACKBONE**: Encrypted unordered WebRTC audio channel via secure signaling when distance opens between riders.
-6. **ZERO-INTERRUPTION HANDOVER**: Proprietary state machine arbitrates the cleanest path in real time without audio drops.
+1. **SPORTS BIKE GLASSMORPHISM UI**:
+   * **Cockpit Dashboard**: OLED pitch-black styling with frosted glass cards (`#131D2D`), fiery red glowing accents, and neon telemetry.
+   * **Hero Superbike Showcase**: Real-time stats (Top Speed 120 KM/H, Convoy Range 450 KM, 18ms Link Latency).
+   * **Giant Glowing Red Circular Button**: 1-Click Start/End Ride action with pulsating ambient glow halo.
+   * **Floating Glass Navigation Bar**: Home, Rides, Garage, Security, and Profile.
+2. **CUSTOM RIDER NAME & BIKE PERSONALIZATION**:
+   * **Personalized Dashboard Greeting**: Displays "Good Morning, **${RiderName}!** ✌️" based on system time.
+   * **Convoy Identification**: Your custom name is broadcasted across the room so other bikers see your name in real time instead of generic IDs.
+3. **ZERO-TOUCH HANDS-FREE MUTE (CRASH-FREE)**:
+   * **👋 Glove Wave**: Wave hand/glove 5–10cm over the top of the handlebar phone to mute/unmute.
+   * **👊 Mount / Handlebar Double-Tap**: Tap the side of your handlebar mount twice to toggle mute.
+   * **Crash-Free Audio/Haptic Feedback**: Uses decoupled `ToneGenerator` and tactile vibrations, preventing native `AudioTrack` `SIGSEGV` crashes.
+   * **Speech-Protected**: Speech will **never** automatically cut audio or drop calls while talking.
+4. **UNSTOPPABLE MOBILE HOTSPOT INTERCOM**:
+   * **`MulticastLock` + `WifiLock` + `WakeLock`**: Prevents Android OS and battery savers from killing Hotspot UDP packets in background.
+   * **Instant Local Call**: Connects phones to a personal mobile hotspot for ultra-low latency (<2ms) full-duplex intercom.
+5. **HIGH-DECIBEL EMERGENCY ALERT HORN**:
+   * Piercing dual-tone European siren (880Hz / 1320Hz) on `USAGE_ALARM` / `STREAM_ALARM` at maximum volume.
+   * Simultaneous SOS tactile haptic vibration for motorcycle helmets and handlebars.
+   * Burst broadcast over Wi-Fi, Hotspots, and Nearby mesh so all riders in the convoy hear it instantly.
 
 ---
 

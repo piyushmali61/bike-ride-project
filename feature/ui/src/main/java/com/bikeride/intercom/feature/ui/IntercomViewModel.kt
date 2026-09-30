@@ -47,6 +47,14 @@ class IntercomViewModel @Inject constructor(
     val currentAudioRoute: StateFlow<AudioRouteType> = audioRouteManager.currentRoute
     val isBluetoothConnected: StateFlow<Boolean> = audioRouteManager.isBluetoothConnected
 
+    private val prefs = context.getSharedPreferences("astra_ride_prefs", Context.MODE_PRIVATE)
+
+    private val _riderName = MutableStateFlow(prefs.getString("RIDER_NAME", "Rider") ?: "Rider")
+    val riderName: StateFlow<String> = _riderName.asStateFlow()
+
+    private val _bikeModel = MutableStateFlow(prefs.getString("BIKE_MODEL", "Yamaha R15 V4") ?: "Yamaha R15 V4")
+    val bikeModel: StateFlow<String> = _bikeModel.asStateFlow()
+
     private val _volumeBoost = MutableStateFlow(1.0f) // 1.0x to 4.0x
     val volumeBoost: StateFlow<Float> = _volumeBoost.asStateFlow()
 
@@ -63,11 +71,30 @@ class IntercomViewModel @Inject constructor(
     val hasPermissions: StateFlow<Boolean> = _hasPermissions.asStateFlow()
 
     init {
+        meshTransport.setRiderName(_riderName.value)
+
         // Collect remote emergency horn triggers
         viewModelScope.launch {
             meshTransport.emergencyAlert.collect {
                 triggerLocalHornAlert(fromRemote = true)
             }
+        }
+    }
+
+    fun setRiderName(name: String) {
+        val sanitized = name.trim().take(20)
+        if (sanitized.isNotBlank()) {
+            _riderName.value = sanitized
+            prefs.edit().putString("RIDER_NAME", sanitized).apply()
+            meshTransport.setRiderName(sanitized)
+        }
+    }
+
+    fun setBikeModel(model: String) {
+        val sanitized = model.trim().take(30)
+        if (sanitized.isNotBlank()) {
+            _bikeModel.value = sanitized
+            prefs.edit().putString("BIKE_MODEL", sanitized).apply()
         }
     }
 
@@ -160,7 +187,7 @@ class IntercomViewModel @Inject constructor(
         audioEngine.playEmergencyHorn(viewModelScope)
         viewModelScope.launch {
             _isEmergencyAlertActive.value = true
-            delay(1500)
+            delay(2200)
             _isEmergencyAlertActive.value = false
         }
     }

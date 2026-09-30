@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -39,6 +40,7 @@ fun RidingHudOverlay(
     latencyMs: Long,
     amplitude: Float,
     onExitHud: () -> Unit,
+    isEmergencyAlert: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val micButtonColor by animateColorAsState(
@@ -87,6 +89,33 @@ fun RidingHudOverlay(
                     Icon(Icons.Filled.Close, contentDescription = "Exit HUD", tint = Color.White)
                     Spacer(Modifier.width(4.dp))
                     Text("MINIMIZE", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            if (isEmergencyAlert) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFFF1744),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Campaign, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "🚨 ALERT HORN SOUNDING! CONVOY SOS ACTIVE 🚨",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
                 }
             }
 
@@ -163,12 +192,13 @@ fun RidingHudOverlay(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     // Giant 100dp HORN Alert Button
+                    val hornActiveColor = if (isEmergencyAlert) Color(0xFFFF1744) else Color(0xFFFF9100)
                     Box(
                         modifier = Modifier
                             .size(105.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFFF9100).copy(alpha = 0.25f))
-                            .border(3.dp, Color(0xFFFF9100), CircleShape)
+                            .background(hornActiveColor.copy(alpha = if (isEmergencyAlert) 0.6f else 0.25f))
+                            .border(3.dp, hornActiveColor, CircleShape)
                             .clickable(onClick = onTriggerHorn),
                         contentAlignment = Alignment.Center
                     ) {
@@ -176,7 +206,7 @@ fun RidingHudOverlay(
                             Icon(
                                 Icons.Filled.Campaign,
                                 contentDescription = "Horn",
-                                tint = Color(0xFFFF9100),
+                                tint = hornActiveColor,
                                 modifier = Modifier.size(44.dp)
                             )
                             Text(
@@ -202,7 +232,7 @@ fun RidingHudOverlay(
                             Icon(
                                 imageVector = when (audioRoute) {
                                     AudioRouteType.HELMET_BLUETOOTH -> Icons.Filled.Headset
-                                    AudioRouteType.LOUDSPEAKER -> Icons.Filled.VolumeUp
+                                    AudioRouteType.LOUDSPEAKER -> Icons.AutoMirrored.Filled.VolumeUp
                                     AudioRouteType.EARPIECE -> Icons.Filled.PhoneInTalk
                                 },
                                 contentDescription = "Route",
