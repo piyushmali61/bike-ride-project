@@ -14,8 +14,8 @@ android {
         applicationId = "com.bikeride.intercom"
         minSdk = 29
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.4.0"
+        versionCode = 5
+        versionName = "1.4.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

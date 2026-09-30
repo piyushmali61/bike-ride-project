@@ -40,8 +40,14 @@ class IntercomViewModel @Inject constructor(
     val latencyMs: StateFlow<Long> = meshTransport.latencyMs
     val peerIsMuted: StateFlow<Boolean> = meshTransport.peerMuted
 
+    // Audio updates amplitude 50x/s; the UI only needs ~10x/s. Sampling keeps the whole screen
+    // from recomposing 100 times a second on slower phones.
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
     val micAmplitude: StateFlow<Float> = audioEngine.micAmplitude
+        .sample(100).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0f)
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
     val peerAmplitude: StateFlow<Float> = audioEngine.peerAmplitude
+        .sample(100).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0f)
     val isMuted: StateFlow<Boolean> = audioEngine.isMuted
 
     val isVoiceControlEnabled: StateFlow<Boolean> = voiceCommandDetector.isVoiceControlEnabled

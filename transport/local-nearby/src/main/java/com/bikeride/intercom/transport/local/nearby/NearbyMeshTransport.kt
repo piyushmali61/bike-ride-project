@@ -117,51 +117,73 @@ class NearbyMeshTransport @Inject constructor(
         return "ROOM:${_currentRoom.value}|$myRiderId|$displayName"
     }
 
+    /**
+     * Nearby delivers payloads on the MAIN thread. At 50–100 voice packets per second that starves
+     * the UI (screen freezes while a rider is connected), so every payload is handed to one
+     * background thread. The queue is bounded and drops the oldest packets, so a burst can never
+     * pile up into lag or memory growth.
+     */
+    private val payloadExecutor = java.util.concurrent.ThreadPoolExecutor(
+        1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
+        java.util.concurrent.LinkedBlockingQueue(64),
+        { r -> Thread(r, "AstraRide-Nearby").apply { isDaemon = true } },
+        java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy()
+    )
+
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
             if (payload.type != Payload.Type.BYTES) return
             val bytes = payload.asBytes() ?: return
             if (bytes.isEmpty()) return
-
-            when (bytes[0]) {
-                PKT_AUDIO -> {
-                    if (bytes.size > 1) handleVoice(bytes.copyOfRange(1, bytes.size), nearbySource = endpointId, lanSource = null)
-                }
-                PKT_PING -> {
-                    if (bytes.size >= 9) {
-                        val buffer = ByteBuffer.wrap(bytes, 1, 8)
-                        val timestamp = buffer.long
-                        sendPong(endpointId, timestamp)
-                    }
-                }
-                PKT_PONG -> {
-                    if (bytes.size >= 9) {
-                        val buffer = ByteBuffer.wrap(bytes, 1, 8)
-                        val originalTime = buffer.long
-                        val rtt = SystemClock.elapsedRealtime() - originalTime
-                        if (rtt in 1..2000) {
-                            _latencyMs.value = rtt
-                        }
-                    }
-                }
-                PKT_HORN -> {
-                    val now = SystemClock.elapsedRealtime()
-                    if (now - lastHornReceivedTime > 1800L) {
-                        lastHornReceivedTime = now
-                        Timber.w("Emergency horn alert packet received from $endpointId!")
-                        _emergencyAlert.tryEmit(Unit)
-                    }
-                }
-                PKT_MUTE -> {
-                    if (bytes.size > 1) {
-                        val isMuted = (bytes[1] == 1.toByte())
-                        updateRiderMute(endpointId, isMuted)
-                    }
+            payloadExecutor.execute {
+                try {
+                    handlePayload(endpointId, bytes)
+                } catch (e: Exception) {
+                    Timber.w(e, "Error handling Nearby payload")
                 }
             }
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {}
+    }
+
+    private fun handlePayload(endpointId: String, bytes: ByteArray) {
+        when (bytes[0]) {
+            PKT_AUDIO -> {
+                if (bytes.size > 1) handleVoice(bytes.copyOfRange(1, bytes.size), nearbySource = endpointId, lanSource = null)
+            }
+            PKT_PING -> {
+                if (bytes.size >= 9) {
+                    val buffer = ByteBuffer.wrap(bytes, 1, 8)
+                    val timestamp = buffer.long
+                    sendPong(endpointId, timestamp)
+                }
+            }
+            PKT_PONG -> {
+                if (bytes.size >= 9) {
+                    val buffer = ByteBuffer.wrap(bytes, 1, 8)
+                    val originalTime = buffer.long
+                    val rtt = SystemClock.elapsedRealtime() - originalTime
+                    if (rtt in 1..2000) {
+                        _latencyMs.value = rtt
+                    }
+                }
+            }
+            PKT_HORN -> {
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastHornReceivedTime > 1800L) {
+                    lastHornReceivedTime = now
+                    Timber.w("Emergency horn alert packet received from $endpointId!")
+                    _emergencyAlert.tryEmit(Unit)
+                }
+            }
+            PKT_MUTE -> {
+                if (bytes.size > 1) {
+                    val isMuted = (bytes[1] == 1.toByte())
+                    updateRiderMute(endpointId, isMuted)
+                }
+            }
+        }
     }
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
@@ -460,11 +482,12 @@ class NearbyMeshTransport @Inject constructor(
     }
 
     private fun updateRiderMute(endpointId: String, isMuted: Boolean) {
-        val rider = _nearbyRiders.value[endpointId] ?: return
-        val current = _nearbyRiders.value.toMutableMap()
-        current[endpointId] = rider.copy(isMuted = isMuted)
-        _nearbyRiders.value = current
-        _peerMuted.value = current.values.any { it.isMuted }
+        // Runs on the payload thread while connection callbacks run on main: update atomically
+        val updated = _nearbyRiders.updateAndGet { riders ->
+            val rider = riders[endpointId] ?: return@updateAndGet riders
+            riders + (endpointId to rider.copy(isMuted = isMuted))
+        }
+        _peerMuted.value = updated.values.any { it.isMuted }
         syncRoster()
     }
 

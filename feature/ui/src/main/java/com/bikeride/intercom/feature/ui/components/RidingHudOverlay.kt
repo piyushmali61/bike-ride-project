@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bikeride.intercom.bluetooth.AudioRouteType
@@ -67,12 +68,14 @@ fun RidingHudOverlay(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(
                         text = "🏍️ ROOM: $roomName",
                         color = Color(0xFF00E676),
                         fontWeight = FontWeight.Black,
-                        fontSize = 18.sp
+                        fontSize = 18.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "🟢 $bikerCount Biker${if (bikerCount > 1) "s" else ""} Connected · ${latencyMs}ms",
@@ -81,14 +84,16 @@ fun RidingHudOverlay(
                     )
                 }
 
+                Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = onExitHud,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF263238)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Filled.Close, contentDescription = "Exit HUD", tint = Color.White)
                     Spacer(Modifier.width(4.dp))
-                    Text("MINIMIZE", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("MINIMIZE", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
 
