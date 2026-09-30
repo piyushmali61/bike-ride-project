@@ -12,6 +12,7 @@ import timber.log.Timber
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.nio.ByteBuffer
 import java.util.UUID
@@ -50,6 +51,10 @@ class LocalLanTransport @Inject constructor(
     private val _connectedLanPeers = MutableStateFlow<Map<String, LanPeer>>(emptyMap())
     val connectedLanPeers: StateFlow<Map<String, LanPeer>> = _connectedLanPeers.asStateFlow()
 
+    private val peerLastSeen = ConcurrentHashMap<String, Long>()
+    private var cachedLocalAddresses: Set<InetAddress> = emptySet()
+    private var lastAddressCacheTime = 0L
+
     private var socket: DatagramSocket? = null
     private var receiveJob: Job? = null
     private var beaconJob: Job? = null
@@ -66,12 +71,13 @@ class LocalLanTransport @Inject constructor(
         isRunning = true
 
         try {
-            socket = DatagramSocket(UDP_PORT).apply {
-                broadcast = true
-                reuseAddress = true
-                receiveBufferSize = 65536
-                sendBufferSize = 65536
-            }
+            val s = DatagramSocket(null)
+            s.reuseAddress = true
+            s.broadcast = true
+            s.receiveBufferSize = 65536
+            s.sendBufferSize = 65536
+            s.bind(InetSocketAddress(UDP_PORT))
+            socket = s
             Timber.i("LocalLanTransport UDP socket started on port $UDP_PORT for room [$currentRoom]")
         } catch (e: Exception) {
             Timber.e(e, "Failed to bind UDP socket on port $UDP_PORT, retrying with wildcard port")
@@ -91,6 +97,8 @@ class LocalLanTransport @Inject constructor(
             while (isActive && isRunning) {
                 try {
                     val s = socket ?: break
+                    // CRITICAL: Always reset length before receive to prevent buffer shrinking
+                    packet.length = buffer.size
                     s.receive(packet)
                     val len = packet.length
                     if (len <= 0) continue
@@ -128,9 +136,9 @@ class LocalLanTransport @Inject constructor(
         // Periodic Broadcast Beacon (every 1200ms)
         beaconJob = scope.launch(Dispatchers.IO) {
             val myDevice = "Rider $myRiderId"
-            val broadcastAddresses = getBroadcastAddresses()
 
             while (isActive && isRunning) {
+                val broadcastAddresses = getBroadcastAddresses()
                 val beaconMessage = "$BEACON_HEADER|$currentRoom|$myRiderId|$myDevice"
                 val beaconBytes = beaconMessage.toByteArray()
 
@@ -146,9 +154,13 @@ class LocalLanTransport @Inject constructor(
                 // Prune dead peers (inactive for > 6 seconds)
                 val now = SystemClock.elapsedRealtime()
                 val current = _connectedLanPeers.value
-                val active = current.filter { now - it.value.lastSeen < 6000L }
+                val active = current.filter { (key, _) ->
+                    val last = peerLastSeen[key] ?: 0L
+                    now - last < 6000L
+                }
                 if (active.size != current.size) {
                     _connectedLanPeers.value = active
+                    peerLastSeen.keys.retainAll(active.keys)
                 }
 
                 delay(1200)
@@ -167,21 +179,23 @@ class LocalLanTransport @Inject constructor(
             if (!room.equals(currentRoom, ignoreCase = true)) return // different room
 
             val key = senderAddress.hostAddress ?: "$senderAddress"
+            peerLastSeen[key] = SystemClock.elapsedRealtime()
+
             val existing = _connectedLanPeers.value[key]
-            val peer = LanPeer(
-                address = senderAddress,
-                port = UDP_PORT,
-                riderId = peerRiderId,
-                displayName = peerModel,
-                isMuted = existing?.isMuted ?: false,
-                lastSeen = SystemClock.elapsedRealtime()
-            )
+            if (existing == null || existing.riderId != peerRiderId || existing.displayName != peerModel) {
+                val peer = LanPeer(
+                    address = senderAddress,
+                    port = UDP_PORT,
+                    riderId = peerRiderId,
+                    displayName = peerModel,
+                    isMuted = existing?.isMuted ?: false,
+                    lastSeen = SystemClock.elapsedRealtime()
+                )
 
-            val updated = _connectedLanPeers.value.toMutableMap()
-            updated[key] = peer
-            _connectedLanPeers.value = updated
+                val updated = _connectedLanPeers.value.toMutableMap()
+                updated[key] = peer
+                _connectedLanPeers.value = updated
 
-            if (existing == null) {
                 Timber.i("LAN Room Peer Discovered via Hotspot/Wi-Fi: $peerModel ($key)")
             }
         }
@@ -263,19 +277,28 @@ class LocalLanTransport @Inject constructor(
     }
 
     private fun isLocalIpAddress(addr: InetAddress): Boolean {
-        try {
-            if (addr.isLoopbackAddress) return true
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
-                val iface = interfaces.nextElement()
-                for (interfaceAddress in iface.interfaceAddresses) {
-                    if (interfaceAddress.address == addr) return true
+        if (addr.isLoopbackAddress) return true
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastAddressCacheTime > 10000L || cachedLocalAddresses.isEmpty()) {
+            try {
+                val set = mutableSetOf<InetAddress>()
+                val interfaces = NetworkInterface.getNetworkInterfaces()
+                while (interfaces.hasMoreElements()) {
+                    val iface = interfaces.nextElement()
+                    for (interfaceAddress in iface.interfaceAddresses) {
+                        val a = interfaceAddress.address
+                        if (a != null) {
+                            set.add(a)
+                        }
+                    }
                 }
+                cachedLocalAddresses = set
+                lastAddressCacheTime = now
+            } catch (e: Exception) {
+                // ignore
             }
-        } catch (e: Exception) {
-            // ignore
         }
-        return false
+        return cachedLocalAddresses.contains(addr)
     }
 
     fun stop() {
@@ -290,6 +313,8 @@ class LocalLanTransport @Inject constructor(
             // ignore
         }
         socket = null
+        peerLastSeen.clear()
+        cachedLocalAddresses = emptySet()
         _connectedLanPeers.value = emptyMap()
     }
 }

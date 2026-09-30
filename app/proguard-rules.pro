@@ -26,3 +26,7 @@
 
 # Keep model classes for serialization
 -keep class com.bikeride.intercom.core.model.** { *; }
+
+# Keep all project application components, services, and models intact
+-keep class com.bikeride.intercom.** { *; }
+-keepclassmembers class com.bikeride.intercom.** { *; }

@@ -8,6 +8,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.bikeride.intercom.bluetooth.AudioRouteManager
 import com.bikeride.intercom.engine.audio.AudioEngine
@@ -30,7 +31,7 @@ import javax.inject.Inject
 class IntercomService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "astra_ride_intercom_channel"
+        const val CHANNEL_ID = "astra_ride_intercom_v2"
         const val NOTIFICATION_ID = 1001
 
         const val ACTION_START = "com.bikeride.intercom.START"
@@ -49,7 +50,10 @@ class IntercomService : Service() {
     @Inject lateinit var audioRouteManager: AudioRouteManager
     @Inject lateinit var voiceCommandDetector: VoiceCommandDetector
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Timber.e(throwable, "Uncaught exception in IntercomService")
+    }
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main + coroutineExceptionHandler)
     private var wakeLock: PowerManager.WakeLock? = null
     private val binder = LocalBinder()
 
@@ -229,10 +233,35 @@ class IntercomService : Service() {
         isRunning = true
     }
 
+    private var lastNotificationText: String? = null
+    private var lastNotificationMuted: Boolean? = null
+    private var lastNotificationTime: Long = 0L
+
     private fun updateNotification(statusText: String) {
         if (!isRunning) return
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIFICATION_ID, buildNotification(statusText))
+        val currentMuted = audioEngine.isMuted.value
+        val now = SystemClock.elapsedRealtime()
+
+        // Deduplicate: If text and mute state haven't changed, don't re-post
+        if (statusText == lastNotificationText && currentMuted == lastNotificationMuted) {
+            return
+        }
+
+        // Rate limit: Do not update notification more often than once per 1000ms unless mute changed
+        if (now - lastNotificationTime < 1000L && currentMuted == lastNotificationMuted) {
+            return
+        }
+
+        lastNotificationText = statusText
+        lastNotificationMuted = currentMuted
+        lastNotificationTime = now
+
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(NOTIFICATION_ID, buildNotification(statusText))
+        } catch (e: Exception) {
+            Timber.e(e, "Error updating notification")
+        }
     }
 
     private fun buildNotification(statusText: String): Notification {
@@ -282,7 +311,10 @@ class IntercomService : Service() {
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentIntent(contentPending)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "End Ride", stopPending)
             .addAction(muteActionIcon, muteActionTitle, mutePending)
             .build()
@@ -290,14 +322,22 @@ class IntercomService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            try {
+                nm.deleteNotificationChannel("astra_ride_intercom_channel")
+            } catch (e: Exception) {
+                // ignore
+            }
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "AstraRide Active Intercom",
-                NotificationManager.IMPORTANCE_HIGH
+                NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Full-duplex motorcycle intercom audio session"
+                setSound(null, null)
+                enableVibration(false)
+                setShowBadge(false)
             }
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(channel)
         }
     }

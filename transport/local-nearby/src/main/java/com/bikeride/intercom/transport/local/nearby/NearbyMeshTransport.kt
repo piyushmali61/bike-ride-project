@@ -114,7 +114,6 @@ class NearbyMeshTransport @Inject constructor(
                     if (bytes.size > 1) {
                         val audioData = bytes.copyOfRange(1, bytes.size)
                         onAudioFrameReceived?.invoke(audioData)
-                        updateRiderSpeaking(endpointId, true)
                     }
                 }
                 PKT_PING -> {
@@ -316,7 +315,9 @@ class NearbyMeshTransport @Inject constructor(
             )
         }
 
-        _connectedRiders.value = merged
+        if (merged != _connectedRiders.value) {
+            _connectedRiders.value = merged
+        }
         if (merged.isNotEmpty()) {
             _state.value = MeshConnectionState.CONNECTED
         } else if (_state.value == MeshConnectionState.CONNECTED) {
@@ -336,7 +337,11 @@ class NearbyMeshTransport @Inject constructor(
             val packet = ByteArray(frame.size + 1)
             packet[0] = PKT_AUDIO
             System.arraycopy(frame, 0, packet, 1, frame.size)
-            client.sendPayload(nearbyEndpoints, Payload.fromBytes(packet))
+            try {
+                client.sendPayload(nearbyEndpoints, Payload.fromBytes(packet))
+            } catch (e: Exception) {
+                Timber.d(e, "Error sending Nearby audio packet")
+            }
         }
     }
 
