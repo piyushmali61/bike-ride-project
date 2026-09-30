@@ -38,6 +38,14 @@ class MessageStore(private val dir: File) {
         }
     }
 
+    fun deleteRoom(roomTag: Int): Boolean = try {
+        val f = file(roomTag)
+        if (f.exists()) f.delete() else true
+    } catch (e: Exception) {
+        Timber.w(e, "Mesh: could not delete room store")
+        false
+    }
+
     private fun toJson(m: ChatMessage) = JSONObject().apply {
         put("key", m.key)
         put("messageId", m.messageId)

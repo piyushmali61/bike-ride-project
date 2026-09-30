@@ -104,6 +104,7 @@ fun HomeScreen(
     var showNameDialog by remember { mutableStateOf(false) }
     var showBikeDialog by remember { mutableStateOf(false) }
     var showRoomDialog by remember { mutableStateOf(false) }
+    var showDeleteConvoyConfirm by remember { mutableStateOf(false) }
     var selectedBottomTab by remember { mutableStateOf(0) }
 
     // Required Android Permissions across API 29-35
@@ -228,6 +229,7 @@ fun HomeScreen(
                     isMuted = isMuted,
                     onSelectPreset = { viewModel.setCustomRideCode(it) },
                     onEditRoom = { showRoomDialog = true },
+                    onDeleteConvoy = { showDeleteConvoyConfirm = true },
                     myProfile = riderProfile,
                     onEditProfile = { showNameDialog = true }
                 )
@@ -342,7 +344,47 @@ fun HomeScreen(
             onSelectRoom = { newRoom ->
                 viewModel.setCustomRideCode(newRoom)
                 showRoomDialog = false
+            },
+            onDeleteRoom = { roomToDelete ->
+                viewModel.deleteConvoy(roomToDelete)
             }
+        )
+    }
+
+    if (showDeleteConvoyConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConvoyConfirm = false },
+            containerColor = Color(0xFF131D2D),
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.DeleteForever, contentDescription = null, tint = Color(0xFFFF2A42))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Delete Convoy Data?", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text(
+                    "Are you sure you want to delete all stored chat, markers, and cached data for convoy \"$selectedRoom\"? This action cannot be undone.",
+                    color = Color(0xFF94A3B8)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteConvoy(selectedRoom)
+                        showDeleteConvoyConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF2A42))
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConvoyConfirm = false }) {
+                    Text("Cancel", color = Color(0xFF94A3B8))
+                }
+            },
+            shape = RoundedCornerShape(20.dp)
         )
     }
 }
@@ -1166,7 +1208,15 @@ fun BikeModelDialog(
     onSave: (String) -> Unit
 ) {
     var text by remember { mutableStateOf(currentModel) }
-    val popularBikes = listOf("Yamaha R15 V4", "Kawasaki Ninja ZX-6R", "BMW S1000RR", "Ducati Panigale V4", "KTM RC 390")
+    val popularBikes = listOf(
+        "CB Hornet 125",
+        "Hunter 350",
+        "Yamaha R15 V4",
+        "KTM RC 390",
+        "Kawasaki Ninja ZX-6R",
+        "BMW S1000RR",
+        "Ducati Panigale V4"
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1229,7 +1279,8 @@ fun BikeModelDialog(
 fun RoomSwitchDialog(
     currentRoom: String,
     onDismiss: () -> Unit,
-    onSelectRoom: (String) -> Unit
+    onSelectRoom: (String) -> Unit,
+    onDeleteRoom: ((String) -> Unit)? = null
 ) {
     var roomInput by remember { mutableStateOf(currentRoom) }
     val presets = listOf("CONVOY 1", "CONVOY 2", "SPEED RUN", "WEEKEND TOUR")
@@ -1238,7 +1289,11 @@ fun RoomSwitchDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF131D2D),
         title = {
-            Text("Switch Convoy Room", color = Color.White, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Groups, contentDescription = null, tint = Color(0xFF38BDF8))
+                Spacer(Modifier.width(8.dp))
+                Text("Switch Convoy Room", color = Color.White, fontWeight = FontWeight.Bold)
+            }
         },
         text = {
             Column {
@@ -1264,16 +1319,37 @@ fun RoomSwitchDialog(
                 Text("Preset Rooms:", color = Color(0xFF94A3B8), fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))
                 presets.forEach { preset ->
-                    Text(
-                        text = "• $preset",
-                        color = Color(0xFF00E676),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { roomInput = preset }
-                            .padding(vertical = 4.dp)
-                    )
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "• $preset",
+                            color = Color(0xFF00E676),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { roomInput = preset }
+                                .padding(vertical = 4.dp)
+                        )
+                        if (onDeleteRoom != null) {
+                            IconButton(
+                                onClick = { onDeleteRoom(preset) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.DeleteOutline,
+                                    contentDescription = "Delete $preset data",
+                                    tint = Color(0xFFEF4444),
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -1393,6 +1469,7 @@ private fun ConvoyRoomPanel(
     isMuted: Boolean,
     onSelectPreset: (String) -> Unit,
     onEditRoom: () -> Unit,
+    onDeleteConvoy: () -> Unit = {},
     myProfile: com.bikeride.intercom.mesh.RiderProfile,
     onEditProfile: () -> Unit
 ) {
@@ -1427,10 +1504,23 @@ private fun ConvoyRoomPanel(
                 shape = RoundedCornerShape(12.dp),
                 color = AstraCardInner
             ) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Edit, contentDescription = null, tint = AstraBlue, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Room", color = AstraBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Edit, contentDescription = null, tint = AstraBlue, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Room", color = AstraBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(Modifier.width(6.dp))
+            Surface(
+                modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onDeleteConvoy),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFFF1744).copy(alpha = 0.15f),
+                border = BorderStroke(1.dp, Color(0xFFFF1744).copy(alpha = 0.4f))
+            ) {
+                Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete Convoy Data", tint = Color(0xFFFF2A42), modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Delete", color = Color(0xFFFF2A42), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -131,6 +131,17 @@ class ConvoyMesh @Inject constructor(
         }
     }
 
+    fun deleteConvoyData(code: String = _room.value) = scope.launch {
+        val normalized = RoomCipher.normalize(code)
+        val roomCipher = RoomCipher(normalized)
+        store.deleteRoom(roomCipher.tag)
+        if (normalized.equals(_room.value, ignoreCase = true)) {
+            _messages.value = emptyList()
+            _unread.value = 0
+            _peers.value = emptyMap()
+        }
+    }
+
     fun setChatVisible(visible: Boolean) {
         chatVisible = visible
         if (visible) _unread.value = 0

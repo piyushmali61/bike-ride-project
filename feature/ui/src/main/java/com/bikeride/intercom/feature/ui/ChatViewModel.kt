@@ -67,6 +67,12 @@ class ChatViewModel @Inject constructor(
 
     fun retryBluetooth() = mesh.start()
 
+    /** Deletes all stored chat and photos for the current room. */
+    fun deleteConvoyData() {
+        mesh.deleteConvoyData()
+        announcer.say("Convoy data deleted.")
+    }
+
     /** Compresses the picked photo to a few KB and sends it. Calls [onResult] with false on failure. */
     fun sendPhoto(uri: Uri, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {

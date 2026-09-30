@@ -86,6 +86,7 @@ fun ChatScreen(
 
     var input by remember { mutableStateOf("") }
     var confirmSos by remember { mutableStateOf(false) }
+    var confirmDeleteConvoy by remember { mutableStateOf(false) }
     var viewingImage by remember { mutableStateOf<String?>(null) }
     var sendingPhoto by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
@@ -148,6 +149,13 @@ fun ChatScreen(
                             if (readAloud) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
                             contentDescription = "Read messages aloud",
                             tint = if (readAloud) ChatGreen else ChatDim
+                        )
+                    }
+                    IconButton(onClick = { confirmDeleteConvoy = true }) {
+                        Icon(
+                            Icons.Filled.DeleteOutline,
+                            contentDescription = "Delete Convoy Data",
+                            tint = Color(0xFFEF4444)
                         )
                     }
                 }
@@ -256,6 +264,37 @@ fun ChatScreen(
                 ) { Text("SEND SOS", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp) }
             },
             dismissButton = { TextButton(onClick = { confirmSos = false }) { Text("CANCEL", color = ChatMuted) } }
+        )
+    }
+
+    if (confirmDeleteConvoy) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteConvoy = false },
+            containerColor = ChatCard,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.DeleteForever, contentDescription = null, tint = Color(0xFFFF2A42))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Delete Convoy Data?", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text(
+                    "Are you sure you want to delete all messages and mesh data for room '$room'? This cannot be undone.",
+                    color = ChatMuted, fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteConvoyData()
+                        confirmDeleteConvoy = false
+                    },
+                    modifier = Modifier.height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SosRed)
+                ) { Text("DELETE DATA", color = Color.White, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeleteConvoy = false }) { Text("CANCEL", color = ChatMuted) } }
         )
     }
 

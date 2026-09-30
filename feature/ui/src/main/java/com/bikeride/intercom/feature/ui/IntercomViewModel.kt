@@ -187,6 +187,13 @@ class IntercomViewModel @Inject constructor(
         }
     }
 
+    /** Deletes all stored chat, photos, and mesh data for the specified convoy. */
+    fun deleteConvoy(roomName: String = _customRideCode.value) {
+        val sanitized = roomName.trim().uppercase()
+        convoyMesh.deleteConvoyData(sanitized)
+        meshAnnouncer.say("Convoy data deleted.")
+    }
+
     fun toggleVoiceControl(enabled: Boolean) {
         voiceCommandDetector.setVoiceControlEnabled(enabled)
     }
