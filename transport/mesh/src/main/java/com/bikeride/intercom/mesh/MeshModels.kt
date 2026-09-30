@@ -48,7 +48,12 @@ data class ChatMessage(
     val via: Via,
     val hops: Int = 0,
     /** Base64 of the encrypted packet, kept for our own messages so they can be re-sent. */
-    val rawPacket: String? = null
+    val rawPacket: String? = null,
+    /** Local JPEG file for photo messages (null while still arriving). */
+    val imagePath: String? = null,
+    /** Photo pieces received so far / expected, for the "receiving photo" progress. */
+    val imageReceived: Int = 0,
+    val imageTotal: Int = 0
 )
 
 data class MeshPeer(
@@ -58,6 +63,48 @@ data class MeshPeer(
     val hops: Int,
     val via: Via
 )
+
+/** Largest photo sent over the mesh (compressed JPEG), about 40 packets. */
+const val MAX_PHOTO_BYTES = 16_000
+
+/**
+ * One piece of a photo. Photos are compressed to a few KB and split so each piece fits in one
+ * mesh packet; pieces relay, de-duplicate and sync over the internet like any other packet.
+ *
+ * ```
+ * imageId:8 index:2 total:2 nameLength:1 name:N data:M
+ * ```
+ */
+internal data class ImageChunk(val imageId: Long, val index: Int, val total: Int, val senderName: String, val data: ByteArray) {
+    fun encode(): ByteArray {
+        val name = senderName.toByteArray(Charsets.UTF_8).take(60).toByteArray()
+        return java.nio.ByteBuffer.allocate(13 + name.size + data.size)
+            .putLong(imageId).putShort(index.toShort()).putShort(total.toShort())
+            .put(name.size.toByte()).put(name).put(data).array()
+    }
+
+    companion object {
+        const val HEADER = 13
+        const val MAX_IMAGE_BYTES = MAX_PHOTO_BYTES
+        const val MAX_CHUNKS = 64
+
+        fun dataCapacity(senderName: String) =
+            RoomCipher.MAX_PLAINTEXT - HEADER - senderName.toByteArray(Charsets.UTF_8).take(60).size
+
+        fun decode(bytes: ByteArray): ImageChunk? {
+            if (bytes.size < HEADER) return null
+            val buf = java.nio.ByteBuffer.wrap(bytes)
+            val id = buf.long
+            val index = buf.short.toInt() and 0xFFFF
+            val total = buf.short.toInt() and 0xFFFF
+            val nameLen = buf.get().toInt() and 0xFF
+            if (total == 0 || total > MAX_CHUNKS || index >= total || buf.remaining() < nameLen) return null
+            val name = ByteArray(nameLen).also { buf.get(it) }.toString(Charsets.UTF_8)
+            val data = ByteArray(buf.remaining()).also { buf.get(it) }
+            return ImageChunk(id, index, total, name, data)
+        }
+    }
+}
 
 /** Body of CHAT / SOS / LOCATION packets: sender name travels with the message. */
 internal object MessageBody {

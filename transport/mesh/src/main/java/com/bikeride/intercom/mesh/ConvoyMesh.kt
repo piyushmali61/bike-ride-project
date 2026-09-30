@@ -76,6 +76,14 @@ class ConvoyMesh @Inject constructor(
     private val _incomingSos = MutableSharedFlow<ChatMessage>(extraBufferCapacity = 4)
     val incomingSos: SharedFlow<ChatMessage> = _incomingSos.asSharedFlow()
 
+    /** Fresh messages from other riders (for spoken announcements). Old history is not re-emitted. */
+    private val _incoming = MutableSharedFlow<ChatMessage>(extraBufferCapacity = 16)
+    val incoming: SharedFlow<ChatMessage> = _incoming.asSharedFlow()
+
+    /** Photos still arriving: key -> pieces received so far. */
+    private val imageParts = LinkedHashMap<String, Array<ByteArray?>>()
+    private val imageDir = File(context.filesDir, "mesh/img").apply { mkdirs() }
+
     val bluetoothLinks: StateFlow<Int> = ble.linkCount
     val bluetoothRunning: StateFlow<Boolean> = ble.isRunning
     val internetRelays: StateFlow<Int> = nostr.connectedRelays
@@ -161,6 +169,41 @@ class ConvoyMesh @Inject constructor(
         } else ""
         sendMessage(MeshType.SOS, body, latitude, longitude)
     }
+
+    /**
+     * Sends a photo that is already compressed to at most [ImageChunk.MAX_IMAGE_BYTES] (JPEG).
+     * Returns false when it is too large.
+     */
+    fun sendImage(jpeg: ByteArray): Boolean {
+        if (jpeg.isEmpty() || jpeg.size > ImageChunk.MAX_IMAGE_BYTES) return false
+        scope.launch {
+            val name = _profile.value.name
+            val capacity = ImageChunk.dataCapacity(name)
+            val total = (jpeg.size + capacity - 1) / capacity
+            if (total > ImageChunk.MAX_CHUNKS) return@launch
+            val imageId = newId()
+            val key = imageKey(myId, imageId)
+            val file = File(imageDir, "$key.jpg").apply { writeBytes(jpeg) }
+            val online = ble.linkCount.value > 0 || nostr.connectedRelays.value > 0
+            addMessage(
+                ChatMessage(
+                    key = key, messageId = imageId, senderId = myId, senderName = name,
+                    type = MeshType.IMAGE, text = "Photo", timestamp = System.currentTimeMillis(),
+                    isMine = true, state = if (online) DeliveryState.SENT else DeliveryState.QUEUED,
+                    via = Via.YOU, imagePath = file.absolutePath, imageReceived = total, imageTotal = total
+                )
+            )
+            for (i in 0 until total) {
+                val data = jpeg.copyOfRange(i * capacity, minOf(jpeg.size, (i + 1) * capacity))
+                originate(MeshType.IMAGE, ImageChunk(imageId, i, total, name, data).encode())
+                delay(IMAGE_CHUNK_PACING_MS) // lets Bluetooth queues drain between pieces
+            }
+        }
+        return true
+    }
+
+    private fun imageKey(sender: Long, imageId: Long) =
+        "img:${java.lang.Long.toHexString(sender)}:${java.lang.Long.toHexString(imageId)}"
 
     private fun sendMessage(type: MeshType, body: String, lat: Double?, lon: Double?) {
         val name = _profile.value.name
@@ -268,6 +311,7 @@ class ConvoyMesh @Inject constructor(
                     list.map { if (it.isMine && it.messageId == ref) it.copy(seenBy = it.seenBy + packet.senderId, state = DeliveryState.SENT) else it }
                 }
             }
+            MeshType.IMAGE -> receiveImageChunk(packet, plain, via, hops)
             MeshType.CHAT, MeshType.SOS, MeshType.LOCATION -> {
                 if (_messages.value.any { it.key == packet.key }) return
                 val (name, body) = MessageBody.decode(plain)
@@ -290,6 +334,7 @@ class ConvoyMesh @Inject constructor(
                 touchPeer(packet.senderId, _peers.value[packet.senderId]?.profile ?: RiderProfile(name = name), via, hops)
                 if (!chatVisible) _unread.value += 1
                 if (packet.type == MeshType.SOS) _incomingSos.tryEmit(msg)
+                if (isFresh(packet)) _incoming.tryEmit(msg)
                 // Delivery receipt back to the sender, over whichever path works.
                 originate(
                     MeshType.ACK,
@@ -300,6 +345,54 @@ class ConvoyMesh @Inject constructor(
             }
         }
     }
+
+    private fun receiveImageChunk(packet: MeshPacket, plain: ByteArray, via: Via, hops: Int) {
+        val chunk = ImageChunk.decode(plain) ?: return
+        val key = imageKey(packet.senderId, chunk.imageId)
+        val existing = _messages.value.firstOrNull { it.key == key }
+        if (existing?.imagePath != null) return
+
+        val parts = imageParts.getOrPut(key) { arrayOfNulls(chunk.total) }
+        if (parts.size != chunk.total) return
+        parts[chunk.index] = chunk.data
+        while (imageParts.size > MAX_PENDING_IMAGES) imageParts.remove(imageParts.keys.first())
+        val received = parts.count { it != null }
+
+        var path: String? = null
+        if (received == chunk.total) {
+            val file = File(imageDir, "$key.jpg")
+            file.outputStream().use { out -> parts.forEach { out.write(it!!) } }
+            imageParts.remove(key)
+            path = file.absolutePath
+        }
+
+        val msg = (existing ?: ChatMessage(
+            key = key, messageId = chunk.imageId, senderId = packet.senderId, senderName = chunk.senderName,
+            type = MeshType.IMAGE, text = "Photo", timestamp = packet.timestamp, isMine = false,
+            via = via, hops = hops, imageTotal = chunk.total
+        )).copy(imagePath = path, imageReceived = received)
+
+        if (existing == null) {
+            addMessage(msg)
+            touchPeer(packet.senderId, _peers.value[packet.senderId]?.profile ?: RiderProfile(name = chunk.senderName), via, hops)
+        } else {
+            updateMessages { list -> list.map { if (it.key == key) msg else it } }
+        }
+
+        if (path != null) {
+            if (!chatVisible) _unread.value += 1
+            if (isFresh(packet)) _incoming.tryEmit(msg)
+            originate(
+                MeshType.ACK,
+                ByteBuffer.allocate(8).putLong(chunk.imageId).array(),
+                recipient = packet.senderId,
+                keepForReplay = false
+            )
+        }
+    }
+
+    /** Only recent messages are announced; history replayed after reconnecting stays silent. */
+    private fun isFresh(packet: MeshPacket) = System.currentTimeMillis() - packet.timestamp < ANNOUNCE_WINDOW_MS
 
     private fun onNewNeighbour(linkId: String) {
         // Store-and-forward: hand the newcomer everything recent it may have missed.
@@ -370,6 +463,9 @@ class ConvoyMesh @Inject constructor(
         const val MAX_CHAT_CHARS = 300
         const val PEER_FORGET_MS = 10 * 60 * 1000L
         const val PEER_ACTIVE_MS = 3 * 60 * 1000L
+        const val ANNOUNCE_WINDOW_MS = 2 * 60 * 1000L
+        private const val IMAGE_CHUNK_PACING_MS = 25L
+        private const val MAX_PENDING_IMAGES = 8
 
         private const val KEY_ID = "mesh_id"
         private const val KEY_ROOM = "mesh_room"

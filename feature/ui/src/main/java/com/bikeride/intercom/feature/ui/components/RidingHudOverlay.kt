@@ -1,9 +1,14 @@
 package com.bikeride.intercom.feature.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,17 +21,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bikeride.intercom.bluetooth.AudioRouteType
+import kotlinx.coroutines.delay
 
 /**
- * Ultra-high-contrast OLED black full-screen HUD mode for motorcyclists.
- * Features oversized touch targets (≥ 120dp) specifically engineered
- * for handlebar-mounted phones and thick motorcycle riding gloves.
- * Displays real-time Room status and Voice Mute indicator ("Say Mute to Mute").
+ * Full-screen OLED-black riding HUD, built for gloves on a handlebar mount:
+ * - Double-tap anywhere on the background to mute / unmute.
+ * - Big one-tap convoy alerts (Slow down, Hi, Stop, Pit stop) that every rider hears aloud.
+ * - Horn, Location (announced by voice) and audio route within thumb reach.
  */
 @Composable
 fun RidingHudOverlay(
@@ -42,9 +53,29 @@ fun RidingHudOverlay(
     amplitude: Float,
     onExitHud: () -> Unit,
     isEmergencyAlert: Boolean = false,
+    quickAlerts: List<String> = emptyList(),
+    onQuickAlert: (String) -> Unit = {},
+    onShareLocation: () -> Unit = {},
+    voiceSosLabel: String = "Voice SOS: off",
+    voiceSosOn: Boolean = false,
+    onToggleVoiceSos: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val micButtonColor by animateColorAsState(
+    val haptics = LocalHapticFeedback.current
+    var confirmation by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(confirmation) {
+        if (confirmation != null) {
+            delay(1500)
+            confirmation = null
+        }
+    }
+    fun confirm(text: String) {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        confirmation = text
+    }
+    val currentMuted by rememberUpdatedState(isMuted)
+
+    val micColor by animateColorAsState(
         targetValue = if (isMuted) Color(0xFFD32F2F) else Color(0xFF00C853),
         label = "micColor"
     )
@@ -53,37 +84,41 @@ fun RidingHudOverlay(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
-            .padding(16.dp)
+            // Double-tap on any empty area toggles mute — no need to aim with gloves
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = {
+                    onToggleMute()
+                    confirm(if (currentMuted) "🎙️ Mic live" else "🔇 Muted")
+                })
+            }
+            .systemBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top HUD Bar
+            // ── Status bar ──
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = "🏍️ ROOM: $roomName",
+                        text = "🏍️ $roomName",
                         color = Color(0xFF00E676),
                         fontWeight = FontWeight.Black,
-                        fontSize = 18.sp,
+                        fontSize = 20.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "🟢 $bikerCount Biker${if (bikerCount > 1) "s" else ""} Connected · ${latencyMs}ms",
+                        text = if (bikerCount <= 1) "Waiting for riders…" else "🟢 $bikerCount riders · ${latencyMs}ms",
                         color = Color.White.copy(alpha = 0.85f),
                         fontSize = 14.sp
                     )
                 }
-
                 Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = onExitHud,
@@ -98,182 +133,173 @@ fun RidingHudOverlay(
             }
 
             if (isEmergencyAlert) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFFF1744),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Filled.Campaign, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "🚨 ALERT HORN SOUNDING! CONVOY SOS ACTIVE 🚨",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-            }
-
-            // Hands-Free Control Banner
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = Color(0xFF1E293B),
-                modifier = Modifier.padding(vertical = 4.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                ) {
-                    Icon(Icons.Filled.PanTool, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
+                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFFF1744), modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Wave glove over phone or say \"Rider signing off\" to Mute",
+                        "🚨 ALERT HORN · CONVOY SOS ACTIVE",
+                        modifier = Modifier.padding(10.dp),
                         color = Color.White,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
 
-            // Audio Waveform
-            AudioWaveVisualizer(
-                amplitude = amplitude,
-                isMuted = isMuted,
-                barCount = 13,
-                maxHeight = 70.dp,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-
-            // Primary Glove-Friendly Controls (Centerpiece)
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+            // ── Hints + Voice SOS switch ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Giant 150dp MUTE button
-                Box(
-                    modifier = Modifier
-                        .size(150.dp)
-                        .clip(CircleShape)
-                        .background(micButtonColor.copy(alpha = 0.25f))
-                        .border(4.dp, micButtonColor, CircleShape)
-                        .clickable(onClick = onToggleMute),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = if (isMuted) Icons.Filled.MicOff else Icons.Filled.Mic,
-                            contentDescription = "Mute",
-                            tint = micButtonColor,
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = if (isMuted) "MUTED" else "MIC LIVE",
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = "Tap or say 'Mute'",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 11.sp
-                        )
+                Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFF1E293B), modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                        Icon(Icons.Filled.TouchApp, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Double-tap screen or wave to mute", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
-
-                // Bottom Dual Control Row: HORN + AUDIO ROUTE
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                Surface(
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onToggleVoiceSos),
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (voiceSosOn) Color(0xFF3F0D12) else Color(0xFF1E293B),
+                    border = BorderStroke(1.dp, if (voiceSosOn) Color(0xFFFF5252) else Color(0xFF334155))
                 ) {
-                    // Giant 100dp HORN Alert Button
-                    val hornActiveColor = if (isEmergencyAlert) Color(0xFFFF1744) else Color(0xFFFF9100)
-                    Box(
-                        modifier = Modifier
-                            .size(105.dp)
-                            .clip(CircleShape)
-                            .background(hornActiveColor.copy(alpha = if (isEmergencyAlert) 0.6f else 0.25f))
-                            .border(3.dp, hornActiveColor, CircleShape)
-                            .clickable(onClick = onTriggerHorn),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Filled.Campaign,
-                                contentDescription = "Horn",
-                                tint = hornActiveColor,
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Text(
-                                "HORN",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
+                    Text(
+                        voiceSosLabel,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        color = if (voiceSosOn) Color(0xFFFF8A80) else Color(0xFF94A3B8),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
-                    // Giant 100dp Audio Output Route Button
-                    Box(
-                        modifier = Modifier
-                            .size(105.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF00B0FF).copy(alpha = 0.25f))
-                            .border(3.dp, Color(0xFF00B0FF), CircleShape)
-                            .clickable(onClick = onCycleRoute),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = when (audioRoute) {
-                                    AudioRouteType.HELMET_BLUETOOTH -> Icons.Filled.Headset
-                                    AudioRouteType.LOUDSPEAKER -> Icons.AutoMirrored.Filled.VolumeUp
-                                    AudioRouteType.EARPIECE -> Icons.Filled.PhoneInTalk
-                                },
-                                contentDescription = "Route",
-                                tint = Color(0xFF00B0FF),
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Text(
-                                text = when (audioRoute) {
-                                    AudioRouteType.HELMET_BLUETOOTH -> "HELMET"
-                                    AudioRouteType.LOUDSPEAKER -> "SPEAKER"
-                                    AudioRouteType.EARPIECE -> "EARPIECE"
-                                },
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
+            AudioWaveVisualizer(amplitude = amplitude, isMuted = isMuted, barCount = 13, maxHeight = 44.dp)
+
+            // ── Mute (centre) ──
+            Box(
+                modifier = Modifier
+                    .size(132.dp)
+                    .clip(CircleShape)
+                    .background(micColor.copy(alpha = 0.25f))
+                    .border(4.dp, micColor, CircleShape)
+                    .clickable(onClick = onToggleMute),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = if (isMuted) Icons.Filled.MicOff else Icons.Filled.Mic,
+                        contentDescription = "Mute",
+                        tint = micColor,
+                        modifier = Modifier.size(54.dp)
+                    )
+                    Text(if (isMuted) "MUTED" else "MIC LIVE", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                }
+            }
+
+            // ── Quick convoy alerts: 2 × 2 big buttons ──
+            if (quickAlerts.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    quickAlerts.chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            row.forEach { label ->
+                                QuickAlertButton(label, Modifier.weight(1f)) {
+                                    onQuickAlert(label)
+                                    confirm("✓ Sent: $label")
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // Big Glove-Friendly End Ride button in HUD
+            // ── Horn · Location · Speaker ──
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                val hornColor = if (isEmergencyAlert) Color(0xFFFF1744) else Color(0xFFFF9100)
+                RoundAction(Icons.Filled.Campaign, "HORN", hornColor) {
+                    onTriggerHorn()
+                    confirm("🚨 Horn sent")
+                }
+                RoundAction(Icons.Filled.MyLocation, "LOCATION", Color(0xFF22C55E)) {
+                    onShareLocation()
+                    confirm("📍 Location shared")
+                }
+                RoundAction(
+                    when (audioRoute) {
+                        AudioRouteType.HELMET_BLUETOOTH -> Icons.Filled.Headset
+                        AudioRouteType.LOUDSPEAKER -> Icons.AutoMirrored.Filled.VolumeUp
+                        AudioRouteType.EARPIECE -> Icons.Filled.PhoneInTalk
+                    },
+                    when (audioRoute) {
+                        AudioRouteType.HELMET_BLUETOOTH -> "HELMET"
+                        AudioRouteType.LOUDSPEAKER -> "SPEAKER"
+                        AudioRouteType.EARPIECE -> "EARPIECE"
+                    },
+                    Color(0xFF00B0FF),
+                    onCycleRoute
+                )
+            }
+
             Button(
                 onClick = onEndRide,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
+                modifier = Modifier.fillMaxWidth().height(54.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C))
             ) {
                 Icon(Icons.Filled.CallEnd, contentDescription = null, tint = Color.White)
                 Spacer(Modifier.width(8.dp))
-                Text("END RIDE CONVOY", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+                Text("END RIDE", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 16.sp)
             }
+        }
 
-            Spacer(Modifier.height(8.dp))
+        // Big confirmation so riders know a tap worked without reading small text
+        AnimatedVisibility(
+            visible = confirmation != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Surface(shape = RoundedCornerShape(18.dp), color = Color(0xE6111827), border = BorderStroke(2.dp, Color(0xFF38BDF8))) {
+                Text(
+                    confirmation ?: "",
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 18.dp),
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickAlertButton(label: String, modifier: Modifier, onClick: () -> Unit) {
+    Surface(
+        modifier = modifier.height(62.dp).clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFF1E293B),
+        border = BorderStroke(2.dp, Color(0xFF475569))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(label, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Black, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun RoundAction(icon: ImageVector, label: String, color: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(92.dp)
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.22f))
+            .border(3.dp, color, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(36.dp))
+            Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
         }
     }
 }

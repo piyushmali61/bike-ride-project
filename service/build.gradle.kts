@@ -23,6 +23,7 @@ dependencies {
     implementation(project(":engine:session"))
     implementation(project(":transport:api"))
     implementation(project(":transport:local-nearby"))
+    implementation(project(":transport:mesh"))
     implementation(project(":bluetooth"))
     implementation(project(":security"))
     implementation(project(":data"))

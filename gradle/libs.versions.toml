@@ -22,6 +22,8 @@ zxing = "3.5.3"
 protobuf = "4.29.3"
 ktor-server = "3.0.3"
 okhttp = "4.12.0"
+vosk = "0.3.47"
+jna = "5.13.0"
 tink = "1.15.0"
 timber = "5.0.1"
 junit5 = "5.11.4"
@@ -99,6 +101,8 @@ tink-android = { group = "com.google.crypto.tink", name = "tink-android", versio
 
 # Networking
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+vosk-android = { group = "com.alphacephei", name = "vosk-android", version.ref = "vosk" }
+jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 
 # Logging
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }

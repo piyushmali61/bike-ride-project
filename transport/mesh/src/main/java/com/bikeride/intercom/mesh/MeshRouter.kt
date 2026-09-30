@@ -14,7 +14,7 @@ class MeshRouter(
     private val now: () -> Long = System::currentTimeMillis,
     private val maxAgeMs: Long = 6 * 60 * 60 * 1000L,
     private val seenCapacity: Int = 4096,
-    private val bufferCapacity: Int = 300
+    private val bufferCapacity: Int = 600
 ) {
     private val seen = object : LinkedHashMap<String, Long>(256, 0.75f, false) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?) = size > seenCapacity

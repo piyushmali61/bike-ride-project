@@ -13,6 +13,11 @@ import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.bikeride.intercom.bluetooth.AudioRouteManager
 import com.bikeride.intercom.engine.audio.AudioEngine
+import com.bikeride.intercom.engine.audio.SpeechCommandSpotter
+import com.bikeride.intercom.engine.audio.SpokenCommand
+import com.bikeride.intercom.engine.audio.VoiceAnnouncer
+import com.bikeride.intercom.mesh.ConvoyMesh
+import com.bikeride.intercom.mesh.LocationHelper
 import com.bikeride.intercom.engine.audio.VoiceCommand
 import com.bikeride.intercom.engine.audio.VoiceCommandDetector
 import com.bikeride.intercom.transport.local.nearby.MeshConnectionState
@@ -50,6 +55,9 @@ class IntercomService : Service() {
     @Inject lateinit var meshTransport: NearbyMeshTransport
     @Inject lateinit var audioRouteManager: AudioRouteManager
     @Inject lateinit var voiceCommandDetector: VoiceCommandDetector
+    @Inject lateinit var speechSpotter: SpeechCommandSpotter
+    @Inject lateinit var voiceAnnouncer: VoiceAnnouncer
+    @Inject lateinit var convoyMesh: ConvoyMesh
 
     private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
         Timber.e(throwable, "Uncaught exception in IntercomService")
@@ -125,10 +133,17 @@ class IntercomService : Service() {
             }
         }
 
-        // Feed raw mic audio to In-App Phrase Spotter
+        // Offline Voice SOS: listens to the intercom's own mic frames (works even while muted)
         serviceScope.launch(Dispatchers.Default) {
-            audioEngine.rawFrames.collect { frame ->
-                voiceCommandDetector.processAudioFrame(frame, audioEngine.isMuted.value)
+            audioEngine.rawFrames.collect { frame -> speechSpotter.feed(frame) }
+        }
+        serviceScope.launch {
+            speechSpotter.commands.collect { command ->
+                when (command) {
+                    // Prompts avoid the trigger words so the phone never confirms itself
+                    SpokenCommand.SOS_ARMED -> voiceAnnouncer.say("Alarm ready. Repeat to confirm.", urgent = true)
+                    SpokenCommand.SOS_CONFIRMED -> raiseSos()
+                }
             }
         }
 
@@ -183,6 +198,16 @@ class IntercomService : Service() {
                 updateNotification(status)
             }
         }
+    }
+
+    /** Horn on every nearby phone plus an SOS with location over the mesh (multi-hop and internet). */
+    private fun raiseSos() {
+        Timber.w("Voice SOS: raising convoy alarm")
+        audioEngine.playEmergencyHorn(serviceScope)
+        meshTransport.sendEmergencyHornAlert()
+        val loc = LocationHelper.lastKnown(this)
+        convoyMesh.sendSos(loc?.first, loc?.second)
+        voiceAnnouncer.say("Alert sent to your convoy.", urgent = true)
     }
 
     fun toggleMuteFromAction() {

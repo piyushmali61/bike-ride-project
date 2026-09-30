@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bikeride.intercom.bluetooth.AudioRouteType
 import com.bikeride.intercom.feature.ui.IntercomViewModel
+import com.bikeride.intercom.engine.audio.SpeechCommandSpotter
+import com.bikeride.intercom.engine.audio.SpeechModelState
 import com.bikeride.intercom.feature.ui.components.AudioWaveVisualizer
 import com.bikeride.intercom.feature.ui.components.RidingHudOverlay
 import com.bikeride.intercom.transport.local.nearby.MeshConnectionState
@@ -81,6 +83,23 @@ fun HomeScreen(
     val meshBtLinks by viewModel.meshBluetoothLinks.collectAsState()
     val meshRelays by viewModel.meshInternetRelays.collectAsState()
     val meshPeers by viewModel.meshPeers.collectAsState()
+    val voiceSosState by viewModel.voiceSosState.collectAsState()
+    val voiceSosEnabled by viewModel.voiceSosEnabled.collectAsState()
+    val announceEnabled by viewModel.announceEnabled.collectAsState()
+    var showVoiceSosSetup by remember { mutableStateOf(false) }
+    val voiceSosLabel = when (val st = voiceSosState) {
+        is SpeechModelState.Downloading -> "Downloading ${st.percent}%"
+        is SpeechModelState.Failed -> "Voice SOS: retry"
+        SpeechModelState.NotInstalled -> "Voice SOS: set up"
+        SpeechModelState.Ready -> if (voiceSosEnabled) "Voice SOS: ON" else "Voice SOS: off"
+    }
+    val onToggleVoiceSos: () -> Unit = {
+        when (voiceSosState) {
+            SpeechModelState.NotInstalled, is SpeechModelState.Failed -> showVoiceSosSetup = true
+            is SpeechModelState.Downloading -> Unit
+            SpeechModelState.Ready -> viewModel.setVoiceSos(!voiceSosEnabled)
+        }
+    }
 
     var showNameDialog by remember { mutableStateOf(false) }
     var showBikeDialog by remember { mutableStateOf(false) }
@@ -138,7 +157,17 @@ fun HomeScreen(
             latencyMs = latencyMs,
             amplitude = if (micAmplitude > 0.05f) micAmplitude else peerAmplitude,
             onExitHud = { viewModel.toggleRidingHud(false) },
-            isEmergencyAlert = isEmergencyAlert
+            isEmergencyAlert = isEmergencyAlert,
+            quickAlerts = IntercomViewModel.QUICK_ALERTS,
+            onQuickAlert = { viewModel.sendQuickAlert(it) },
+            onShareLocation = { viewModel.shareMyLocation() },
+            voiceSosLabel = voiceSosLabel,
+            voiceSosOn = voiceSosEnabled,
+            onToggleVoiceSos = onToggleVoiceSos
+        )
+        if (showVoiceSosSetup) VoiceSosSetupDialog(
+            onDismiss = { showVoiceSosSetup = false },
+            onConfirm = { viewModel.setVoiceSos(true); showVoiceSosSetup = false }
         )
         return
     }
@@ -219,8 +248,12 @@ fun HomeScreen(
             item {
                 HandsFreeMutePanel(
                     isMuted = isMuted,
-                    lastVoiceCommand = lastVoiceCommand,
-                    onToggleMute = { viewModel.toggleMute() }
+                    onToggleMute = { viewModel.toggleMute() },
+                    voiceSosLabel = voiceSosLabel,
+                    voiceSosOn = voiceSosEnabled,
+                    onToggleVoiceSos = onToggleVoiceSos,
+                    announceOn = announceEnabled,
+                    onToggleAnnounce = { viewModel.setAnnounce(!announceEnabled) }
                 )
             }
 
@@ -292,6 +325,13 @@ fun HomeScreen(
                 viewModel.setBikeModel(newModel)
                 showBikeDialog = false
             }
+        )
+    }
+
+    if (showVoiceSosSetup) {
+        VoiceSosSetupDialog(
+            onDismiss = { showVoiceSosSetup = false },
+            onConfirm = { viewModel.setVoiceSos(true); showVoiceSosSetup = false }
         )
     }
 
@@ -1487,8 +1527,12 @@ private fun RiderPill(name: String, role: String, isMuted: Boolean) {
 @Composable
 private fun HandsFreeMutePanel(
     isMuted: Boolean,
-    lastVoiceCommand: String?,
-    onToggleMute: () -> Unit
+    onToggleMute: () -> Unit,
+    voiceSosLabel: String,
+    voiceSosOn: Boolean,
+    onToggleVoiceSos: () -> Unit,
+    announceOn: Boolean,
+    onToggleAnnounce: () -> Unit
 ) {
     AstraPanel(borderColor = Color(0xFF1E4F6E)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1500,8 +1544,8 @@ private fun HandsFreeMutePanel(
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("Hands-Free Mute Control", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Wave glove or say 'Rider signing off'", color = AstraMuted, fontSize = 13.sp)
+                Text("Hands-Free Control", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Wave, double-tap or speak — no touching needed", color = AstraMuted, fontSize = 13.sp)
             }
             // Switch ON = mic live, OFF = muted
             Switch(
@@ -1519,14 +1563,16 @@ private fun HandsFreeMutePanel(
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFF111827)).padding(14.dp)
         ) {
-            Text("👋  Wave glove 5cm over top of phone to Mute / Unmute", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("👋  Wave glove 5cm over the phone to mute / unmute", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
-            Text("🎙️  Or speak: \"Rider signing off\" to Mute · \"Signing on\" to Unmute", color = AstraBlue, fontSize = 13.sp)
+            Text("👆  Double-tap the riding screen to mute / unmute", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
-            Text(
-                "🛡️  " + (lastVoiceCommand?.let { "Last: $it" } ?: "Standalone in-app detection · Zero Gemini popups"),
-                color = AstraDim, fontSize = 12.sp
-            )
+            Text("🆘  Say \"SOS\" twice to alarm the whole convoy", color = AstraBlue, fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingChip(voiceSosLabel, voiceSosOn, Modifier.weight(1f), onToggleVoiceSos)
+                SettingChip(if (announceOn) "Read aloud: ON" else "Read aloud: off", announceOn, Modifier.weight(1f), onToggleAnnounce)
+            }
             Spacer(Modifier.height(8.dp))
             Text(
                 if (isMuted) "● MIC MUTED" else "● MIC LIVE",
@@ -1535,6 +1581,48 @@ private fun HandsFreeMutePanel(
             )
         }
     }
+}
+
+@Composable
+private fun SettingChip(label: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Surface(
+        modifier = modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick),
+        shape = RoundedCornerShape(10.dp),
+        color = if (on) Color(0xFF0C3B2A) else AstraCardInner,
+        border = BorderStroke(1.dp, if (on) AstraGreen else AstraBorder)
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(vertical = 10.dp),
+            color = if (on) AstraGreen else AstraMuted,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun VoiceSosSetupDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = AstraCard,
+        title = { Text("Set up Voice SOS", color = Color.White, fontWeight = FontWeight.Bold) },
+        text = {
+            Text(
+                "Say \"SOS\" twice while riding and the whole convoy hears an alarm with your location.\n\n" +
+                    "This downloads a ${SpeechCommandSpotter.MODEL_SIZE_MB} MB offline speech model once (use Wi-Fi). " +
+                    "After that it works with no internet, and nothing you say leaves the phone.",
+                color = AstraMuted
+            )
+        },
+        confirmButton = {
+            Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))) {
+                Text("DOWNLOAD", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("NOT NOW", color = AstraMuted) } }
+    )
 }
 
 @Composable

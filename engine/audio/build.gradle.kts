@@ -25,6 +25,9 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.timber)
+    implementation(libs.okhttp)
+    implementation(libs.vosk.android)
+    implementation(libs.jna) { artifact { type = "aar" } }
     testImplementation(libs.bundles.testing)
     testRuntimeOnly(libs.junit5.engine)
 }

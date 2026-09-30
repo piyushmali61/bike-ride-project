@@ -30,3 +30,9 @@
 # Keep all project application components, services, and models intact
 -keep class com.bikeride.intercom.** { *; }
 -keepclassmembers class com.bikeride.intercom.** { *; }
+
+# Vosk offline speech (Voice SOS) uses JNA, which relies on reflection
+-keep class com.sun.jna.** { *; }
+-keep class * implements com.sun.jna.** { *; }
+-keep class org.vosk.** { *; }
+-dontwarn java.awt.**

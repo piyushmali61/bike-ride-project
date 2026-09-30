@@ -9,7 +9,10 @@ import com.bikeride.intercom.bluetooth.AudioRouteManager
 import com.bikeride.intercom.bluetooth.AudioRouteType
 import com.bikeride.intercom.engine.audio.AudioEngine
 import com.bikeride.intercom.engine.audio.VoiceCommandDetector
+import com.bikeride.intercom.engine.audio.SpeechCommandSpotter
+import com.bikeride.intercom.engine.audio.SpeechModelState
 import com.bikeride.intercom.mesh.ConvoyMesh
+import com.bikeride.intercom.mesh.LocationHelper
 import com.bikeride.intercom.mesh.RiderProfile
 import com.bikeride.intercom.service.IntercomService
 import com.bikeride.intercom.transport.local.nearby.ConnectedRider
@@ -30,8 +33,15 @@ class IntercomViewModel @Inject constructor(
     private val meshTransport: NearbyMeshTransport,
     private val audioRouteManager: AudioRouteManager,
     private val voiceCommandDetector: VoiceCommandDetector,
-    private val convoyMesh: ConvoyMesh
+    private val convoyMesh: ConvoyMesh,
+    private val meshAnnouncer: MeshAnnouncer,
+    private val speechSpotter: SpeechCommandSpotter
 ) : ViewModel() {
+
+    companion object {
+        /** One-tap convoy alerts on the riding screen and in Mesh Chat. */
+        val QUICK_ALERTS = listOf("🐢 Slow down", "👋 Hi", "🛑 Stop", "⛽ Pit stop")
+    }
 
     val connectionState: StateFlow<MeshConnectionState> = meshTransport.state
     val connectedPeerName: StateFlow<String?> = meshTransport.connectedPeerName
@@ -86,7 +96,35 @@ class IntercomViewModel @Inject constructor(
     val meshInternetRelays: StateFlow<Int> = convoyMesh.internetRelays
     val meshPeers = convoyMesh.peers
 
+    // Voice SOS (offline speech) and spoken announcements
+    val voiceSosState: StateFlow<SpeechModelState> = speechSpotter.state
+    val voiceSosEnabled: StateFlow<Boolean> = speechSpotter.enabled
+    val announceEnabled: StateFlow<Boolean> = meshAnnouncer.enabled
+
+    /** Turns Voice SOS on (downloading the model the first time) or off. */
+    fun setVoiceSos(on: Boolean) = speechSpotter.setEnabled(on)
+
+    fun setAnnounce(on: Boolean) = meshAnnouncer.setEnabled(on)
+
+    /** Sends a quick alert to the whole convoy and confirms it by voice. */
+    fun sendQuickAlert(label: String) {
+        convoyMesh.sendChat(label)
+        meshAnnouncer.say("Sent: $label")
+    }
+
+    /** Shares location with the convoy and announces where the rider is. False if no location yet. */
+    fun shareMyLocation(): Boolean {
+        val loc = LocationHelper.lastKnown(context) ?: run {
+            meshAnnouncer.say("Location not available. Turn on GPS.")
+            return false
+        }
+        convoyMesh.sendLocation(loc.first, loc.second)
+        viewModelScope.launch { meshAnnouncer.announceMyLocation(loc.first, loc.second) }
+        return true
+    }
+
     init {
+        meshAnnouncer.start()
         meshTransport.setRiderName(_riderName.value)
         convoyMesh.setRoom(_customRideCode.value)
 

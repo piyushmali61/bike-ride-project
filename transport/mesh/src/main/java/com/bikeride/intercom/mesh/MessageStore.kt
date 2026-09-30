@@ -54,6 +54,9 @@ class MessageStore(private val dir: File) {
         put("via", m.via.name)
         put("hops", m.hops)
         m.rawPacket?.let { put("raw", it) }
+        m.imagePath?.let { put("image", it) }
+        put("imgRx", m.imageReceived)
+        put("imgTotal", m.imageTotal)
     }
 
     private fun fromJson(o: JSONObject): ChatMessage? = try {
@@ -73,7 +76,10 @@ class MessageStore(private val dir: File) {
             seenBy = if (seen == null) emptySet() else (0 until seen.length()).map { seen.getLong(it) }.toSet(),
             via = Via.valueOf(o.getString("via")),
             hops = o.optInt("hops"),
-            rawPacket = if (o.has("raw")) o.getString("raw") else null
+            rawPacket = if (o.has("raw")) o.getString("raw") else null,
+            imagePath = if (o.has("image")) o.getString("image") else null,
+            imageReceived = o.optInt("imgRx"),
+            imageTotal = o.optInt("imgTotal")
         )
     } catch (e: Exception) {
         null

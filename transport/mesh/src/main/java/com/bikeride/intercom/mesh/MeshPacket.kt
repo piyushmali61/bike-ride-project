@@ -4,7 +4,10 @@ import java.nio.ByteBuffer
 
 /** What a mesh packet carries. Codes are part of the wire format — never renumber. */
 enum class MeshType(val code: Byte) {
-    CHAT(1), SOS(2), LOCATION(3), PROFILE(4), ACK(5);
+    CHAT(1), SOS(2), LOCATION(3), PROFILE(4), ACK(5),
+
+    /** One piece of a photo; see [ImageChunk]. */
+    IMAGE(6);
 
     companion object {
         fun fromCode(code: Byte): MeshType? = entries.firstOrNull { it.code == code }

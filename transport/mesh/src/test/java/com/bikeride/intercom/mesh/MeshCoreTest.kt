@@ -124,6 +124,37 @@ class MeshCoreTest {
         assertEquals(12.97 to 77.59, MessageBody.parseLatLon(body))
     }
 
+    // ── Photos ──────────────────────────────────────────────────────
+
+    @Test
+    fun `photo pieces round-trip and fit in one packet`() {
+        val name = "Aayush"
+        val data = ByteArray(ImageChunk.dataCapacity(name)) { it.toByte() }
+        val chunk = ImageChunk(imageId = 77L, index = 3, total = 40, senderName = name, data = data)
+        val encoded = chunk.encode()
+        assertTrue(encoded.size <= RoomCipher.MAX_PLAINTEXT)
+        val decoded = ImageChunk.decode(encoded)!!
+        assertEquals(77L, decoded.imageId)
+        assertEquals(3, decoded.index)
+        assertEquals(40, decoded.total)
+        assertEquals(name, decoded.senderName)
+        assertArrayEquals(data, decoded.data)
+    }
+
+    @Test
+    fun `a max-size photo needs at most the allowed number of pieces`() {
+        val capacity = ImageChunk.dataCapacity("x".repeat(20))
+        val pieces = (MAX_PHOTO_BYTES + capacity - 1) / capacity
+        assertTrue(pieces <= ImageChunk.MAX_CHUNKS, "pieces=$pieces")
+    }
+
+    @Test
+    fun `malformed photo pieces are rejected`() {
+        assertNull(ImageChunk.decode(ByteArray(5)))
+        val bad = ImageChunk(1, 5, 3, "a", ByteArray(4)).encode() // index >= total
+        assertNull(ImageChunk.decode(bad))
+    }
+
     // ── BIP340 (Nostr signatures) ───────────────────────────────────
 
     @Test

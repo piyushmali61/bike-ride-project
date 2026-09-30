@@ -9,7 +9,7 @@
 
 [![Studio](https://img.shields.io/badge/Crafted%20By-Mythic%20Bharat%20Studios-orange?style=for-the-badge&logo=android)](https://github.com/piyushmali61)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B%20(API%2029--35)-brightgreen?style=for-the-badge&logo=android)](https://android.com)
-[![Release](https://img.shields.io/badge/Version-1.4.1--Release-blue?style=for-the-badge&logo=github)](https://github.com/piyushmali61/bike-ride-project/releases/tag/v1.0.0)
+[![Release](https://img.shields.io/badge/Version-1.5.0--Release-blue?style=for-the-badge&logo=github)](https://github.com/piyushmali61/bike-ride-project/releases/tag/v1.0.0)
 [![Battery](https://img.shields.io/badge/Battery-VAD%20%2B%20DTX%20Optimized-success?style=for-the-badge&logo=speedtest)](https://github.com/piyushmali61/bike-ride-project)
 [![Mesh](https://img.shields.io/badge/Mesh-Multi--Biker%20Cluster-purple?style=for-the-badge&logo=bluetooth)](https://github.com/piyushmali61/bike-ride-project)
 
@@ -19,7 +19,7 @@
 **Get the production release Android application directly on your phone:**
 
 <a href="https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk">
-  <img src="https://img.shields.io/badge/DOWNLOAD%20ASTRARIDE%20INTERCOM-RELEASE%20APK%20(47.5%20MB)-0284c7?style=for-the-badge&logo=android&logoColor=white" height="48" />
+  <img src="https://img.shields.io/badge/DOWNLOAD%20ASTRARIDE%20INTERCOM-RELEASE%20APK%20(40.6%20MB)-0284c7?style=for-the-badge&logo=android&logoColor=white" height="48" />
 </a>
 
 <p><em>Engineered and optimized for all modern Android mobile devices worldwide (Android 10 to 15+).</em></p>
@@ -109,7 +109,8 @@ Rider A ──BLE──► Rider B ──BLE──► Rider C ──BLE──►
 | **No duplicates** | Each packet has a unique ID; the same message arriving over two neighbours *and* the internet is shown once. |
 | **Internet fallback & sync** | The same encrypted packet is also published to free public Nostr relays. Riders with data get it instantly; riders who were offline catch up when they reconnect. Phones with data bridge nearby offline riders' messages to the internet. |
 | **Delivery receipts** | "✓ Sent", "🕓 Waiting for riders", "✓✓ Seen by N". |
-| **Quick alerts** | 🆘 SOS (sounds the alarm on every rider's phone, with your location), 📍 Location (opens in Maps), ⛽ Fuel stop, ☕ Break, 🐢 Slow down, 🔧 Bike trouble… |
+| **Photos** | Compressed to ≤16 KB and split into ~40 pieces that relay and sync like any message; the receiver shows progress and reassembles the photo. |
+| **Ride-first layout** | Big 🆘 SOS and 📍 Location buttons plus 🐢 Slow down · 👋 Hi · 🛑 Stop · ⛽ Pit stop, all in a fixed panel at the bottom within thumb reach. |
 | **Rider profile** | Edit display name, status, avatar and colour — shared live with your convoy. The name is independent from the hidden device ID. |
 
 **Security:** messages are encrypted with AES-256-GCM using a key derived from the room code, and the header is authenticated so tampering is detected. Riders in *other* rooms can relay your packets but cannot read them. Bluetooth advertising carries no name or personal data. Stale or replayed packets (older than 6 h) are rejected.
@@ -120,19 +121,26 @@ Rider A ──BLE──► Rider B ──BLE──► Rider C ──BLE──►
 
 ---
 
-## 🗣️ Zero-Gemini Hands-Free Mute Controls
+## 🗣️ Hands-Free Controls & Voice SOS
 
-Riding at highway speeds with thick leather riding gloves makes touching screens dangerous:
+Riding at highway speeds with thick gloves makes touching screens dangerous:
 
-| Hands-Free Trigger | Action | How It Works | Audio Feedback |
-|---|---|---|---|
-| **👋 Wave Glove** | Toggle Mute / Unmute | Wave glove 5cm over top of phone | Mute / Unmute Chime |
-| **🎙️ "Rider signing off"** | Mutes microphone | In-app cadence analysis | Low descending chime (`480Hz → 320Hz`) |
-| **🎙️ "Signing on"** | Unmutes microphone | In-app cadence analysis | Crisp ascending chime (`440Hz → 880Hz`) |
-| **🚨 "HORN" / "ALERT"** | Emergency Convoy Siren | Broadcasts alarm to all riders | Dual-tone siren (`880Hz / 1760Hz`) |
+| Hands-Free Trigger | Action | How It Works |
+|---|---|---|
+| **👋 Wave Glove** | Mute / Unmute | Wave glove 5cm over the top of the phone (proximity sensor) |
+| **👆 Double-Tap** | Mute / Unmute | Double-tap anywhere on the riding screen — no aiming needed |
+| **🆘 Say "SOS" twice** | Convoy alarm + SOS with location | Offline speech recognition on the intercom's own mic audio |
+| **🐢 👋 🛑 ⛽ Quick alerts** | Slow down · Hi · Stop · Pit stop | One big button each on the riding screen; every rider hears it read aloud |
+| **📍 Location** | Shares your position | Announced by voice to you ("You are near …") and to others ("1.2 km north-east of you") |
 
-* **Zero Assistant Interruptions**: Completely bypassed Android's system speech service so Google Gemini / Google Assistant will **never** interrupt your ride or pop up on your screen.
-* Runs continuously, offline, and privately with zero cellular data required.
+**Voice SOS** uses [Vosk](https://alphacephei.com/vosk/), an open-source offline speech engine:
+
+* It listens to the audio the intercom already captures — no second microphone, no Google Assistant / Gemini popups, nothing leaves the phone.
+* It only recognises a tiny word list, with everyday decoy words (*hello, helmet, stop…*) so "hello" is not mistaken for "help". Tested 19/19 on synthesized trigger and non-trigger phrases.
+* "SOS" must be said **twice within 6 seconds**; after the first the phone says *"Alarm ready. Repeat to confirm."*
+* The ~40 MB English model is downloaded **once** when you turn Voice SOS on (use Wi-Fi); after that it works fully offline.
+
+**Read aloud:** incoming alerts, locations and photos are spoken through the helmet / speaker (like sat-nav prompts). Toggle it on the home screen or in Mesh Chat. Only fresh messages are read, never old history.
 
 ---
 
@@ -188,7 +196,7 @@ To ensure your phone's battery lasts throughout long touring days without draini
 ## 📦 Direct APK Installation
 
 ### 1. Download Link
-* 🚀 [**AstraRide-Intercom.apk**](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk) *(47.5 MB, Optimized Production Release)*
+* 🚀 [**AstraRide-Intercom.apk**](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk) *(40.6 MB, Optimized Production Release)*
 
 ### 2. Quick Install via USB (ADB)
 ```powershell
