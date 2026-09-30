@@ -32,13 +32,15 @@
 
 **AstraRide** is an off-grid, low-latency, full-duplex motorcycle & vehicle convoy smart intercom developed by **Mythic Bharat Studios**. It bridges local ad-hoc radio mesh and cloud connectivity into one seamless experience:
 
-1. **SPORTS BIKE GLASSMORPHISM UI**:
-   * **Cockpit Dashboard**: OLED pitch-black styling with frosted glass cards (`#131D2D`), fiery red glowing accents, and neon telemetry.
-   * **Hero Superbike Showcase**: Real-time stats (Top Speed 120 KM/H, Convoy Range 450 KM, 18ms Link Latency).
-   * **Giant Glowing Red Circular Button**: 1-Click Start/End Ride action with pulsating ambient glow halo.
-   * **Floating Glass Navigation Bar**: Home, Rides, Garage, Security, and Profile.
+1. **UNIVERSAL RIDER MESH UI**:
+   * **AstraRide Header**: App title with "Universal Rider Mesh" tagline and a one-tap **Speaker / Helmet / Earpiece** audio route button.
+   * **Convoy Room Card**: Live status dot, scrollable preset room chips (`CONVOY 1`, `CONVOY 2`, `SQUAD ALPHA`, `APEX RIDERS`…), a **Room** button for custom codes, and a live roster of connected riders.
+   * **Hands-Free Mute Control Card**: On/off switch plus wave-glove and voice-command hints, last detected command, and mic live/muted status.
+   * **Channel Activity Panel**: Shows "CHANNEL QUIET" when idle and a live audio waveform while riders talk.
+   * **Giant Glowing "TAP TO RIDE" Button**: 1-Click intercom start; turns red as **END RIDE** with live Searching / Connecting / Intercom Live status.
+   * **Quick Actions**: Live HUD, Alert Horn, Rider Name, and Bike Model tiles, followed by the audio output + wind-noise boost card and the built-in Multi-Biker Intercom Guide.
 2. **CUSTOM RIDER NAME & BIKE PERSONALIZATION**:
-   * **Personalized Dashboard Greeting**: Displays "Good Morning, **${RiderName}!** ✌️" based on system time.
+   * **Rider Name & Bike Tiles**: Set your rider name and bike model straight from the home screen quick-action tiles.
    * **Convoy Identification**: Your custom name is broadcasted across the room so other bikers see your name in real time instead of generic IDs.
 3. **ZERO-TOUCH HANDS-FREE MUTE (CRASH-FREE)**:
    * **👋 Glove Wave**: Wave hand/glove 5–10cm over the top of the handlebar phone to mute/unmute.
@@ -69,7 +71,7 @@ graph TD
 ```
 
 * **Instant Connection**: Uses deterministic role election and simultaneous local broadcast so Phone 1 and Phone 2 link up in under 1 second without getting stuck on "waiting".
-* **Preset Rooms**: Choose from `CONVOY 1`, `CONVOY 2`, `SQUAD ALPHA`, `APEX`, or create your own custom Room Code.
+* **Preset Rooms**: Choose from `CONVOY 1`, `CONVOY 2`, `SQUAD ALPHA`, `APEX RIDERS`, `SPEED RUN`, `WEEKEND TOUR`, or create your own custom Room Code.
 * **Full-Duplex Multi-Party Audio**: All bikers in the room hear each other simultaneously with hardware Acoustic Echo Cancellation (AEC) and Noise Suppression (NS).
 * **Live Rider Roster**: View all connected bikers with live speaking badges (green pulsing border), volume levels, and individual mute indicators.
 
@@ -152,7 +154,7 @@ adb install -r "AstraRide-Intercom.apk"
 ### 3. How to Connect in 1-Click:
 1. Open **AstraRide** on all bikes.
 2. Ensure you have the same Convoy Room selected (e.g. `"CONVOY 1"`).
-3. Tap the central **"TAP TO RIDE"** radar button on each phone.
+3. Tap the big glowing **"TAP TO RIDE"** button on each phone.
 4. All phones discover and link automatically within 1–2 seconds — **no internet required**!
 5. Speak **"Mute"** anytime while riding to mute hands-free!
 
