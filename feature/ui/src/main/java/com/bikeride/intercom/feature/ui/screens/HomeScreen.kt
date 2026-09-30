@@ -136,215 +136,100 @@ fun HomeScreen(
         return
     }
 
+    val isRideActive = connectionState == MeshConnectionState.CONNECTED ||
+        connectionState == MeshConnectionState.SEARCHING ||
+        connectionState == MeshConnectionState.CONNECTING
+
     Scaffold(
         modifier = modifier,
-        containerColor = Color(0xFF090D16),
+        containerColor = AstraBg,
         topBar = {
-            // Sleek Top App Bar matching screenshot
-            Surface(
-                color = Color(0xFF0C101B),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 18.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Menu Icon
-                    IconButton(
-                        onClick = { showRoomDialog = true },
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF161F2E))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Menu,
-                            contentDescription = "Menu",
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-
-                    // Greeting Column + Clickable Rider Name
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { showNameDialog = true }
-                            .padding(horizontal = 8.dp)
-                    ) {
-                        Text(
-                            text = greeting,
-                            color = Color(0xFF94A3B8),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "$riderName! ✌️",
-                                color = Color.White,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Black,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Filled.Edit,
-                                contentDescription = "Edit Name",
-                                tint = Color(0xFFFF2A42),
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
-
-                    // Notification Bell with Glowing Red Dot
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF161F2E)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = { viewModel.triggerEmergencyHorn() }) {
-                            Icon(
-                                imageVector = Icons.Filled.Notifications,
-                                contentDescription = "Notifications",
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        // Glowing red unread badge
-                        Box(
-                            modifier = Modifier
-                                .size(9.dp)
-                                .align(Alignment.TopEnd)
-                                .offset(x = (-8).dp, y = 8.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFFF1744))
-                        )
-                    }
-                }
-            }
-        },
-        bottomBar = {
-            // Glassmorphism Floating Bottom Navigation Bar (Matching screenshot)
-            SportsBikeGlassNavBar(
-                selectedTab = selectedBottomTab,
-                onTabSelected = { tab ->
-                    selectedBottomTab = tab
-                    when (tab) {
-                        1 -> showRoomDialog = true
-                        2 -> showBikeDialog = true
-                        3 -> viewModel.triggerEmergencyHorn()
-                        4 -> showNameDialog = true
-                    }
-                }
+            AstraTopBar(
+                currentRoute = currentRoute,
+                isBluetoothConnected = isBluetoothConnected,
+                onCycleRoute = { viewModel.cycleAudioRoute() }
             )
         }
     ) { paddingValues ->
-
-        val isSessionActive = connectionState == MeshConnectionState.CONNECTED || connectionState == MeshConnectionState.SEARCHING
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 18.dp),
+                .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            // ═══════════════════════════════════════════════════════════
-            // EMERGENCY HORN PULSING BANNER
-            // ═══════════════════════════════════════════════════════════
             if (isEmergencyAlert) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFF1744)),
-                        elevation = CardDefaults.cardElevation(10.dp)
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFF1744))
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            Icon(Icons.Filled.Campaign, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                            Icon(Icons.Filled.Campaign, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
                             Spacer(Modifier.width(10.dp))
-                            Text(
-                                "🚨 ALERT HORN SOUNDING! CONVOY SOS ACTIVE 🚨",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White
-                            )
+                            Text("ALERT HORN SOUNDING! CONVOY SOS ACTIVE", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
                         }
                     }
                 }
             }
 
-            // ═══════════════════════════════════════════════════════════
-            // HERO SPORTS BIKE SHOWCASE CARD (GLASSMORPHISM)
-            // ═══════════════════════════════════════════════════════════
             item {
-                SportsBikeHeroCard(
-                    bikeModel = bikeModel,
+                ConvoyRoomPanel(
+                    roomName = currentRoom,
                     connectionState = connectionState,
-                    latencyMs = latencyMs,
-                    connectedCount = connectedRiders.size + 1,
-                    onEditBike = { showBikeDialog = true }
-                )
-            }
-
-            // ═══════════════════════════════════════════════════════════
-            // CENTRAL ACTION BUTTONS (Exact Match to Screenshot 3 Circles!)
-            // ═══════════════════════════════════════════════════════════
-            item {
-                CentralCockpitActionCluster(
-                    isActive = isSessionActive,
-                    onToggleRide = { viewModel.onOneClickConnectToggle() },
-                    onOpenHud = { viewModel.toggleRidingHud(true) },
-                    onAlertHorn = { viewModel.triggerEmergencyHorn() }
-                )
-            }
-
-            // ═══════════════════════════════════════════════════════════
-            // ZERO-TOUCH HANDS-FREE MUTE CONTROL CARD
-            // ═══════════════════════════════════════════════════════════
-            item {
-                HandsFreeZeroTouchMuteCard(
+                    connectedRiders = connectedRiders.values.toList(),
+                    myRiderName = riderName,
                     isMuted = isMuted,
-                    sensorStatus = lastVoiceCommand ?: "READY (WAVE OR DOUBLE-TAP)",
+                    onSelectPreset = { viewModel.setCustomRideCode(it) },
+                    onEditRoom = { showRoomDialog = true }
+                )
+            }
+
+            item {
+                HandsFreeMutePanel(
+                    isMuted = isMuted,
+                    lastVoiceCommand = lastVoiceCommand,
                     onToggleMute = { viewModel.toggleMute() }
                 )
             }
 
-            // ═══════════════════════════════════════════════════════════
-            // CONVOY ROOM & ROUTE CARD (Matches "Last Ride" in screenshot)
-            // ═══════════════════════════════════════════════════════════
             item {
-                ConvoyRoomCard(
-                    roomName = currentRoom,
-                    connectedRiders = connectedRiders.values.toList(),
-                    myRiderName = riderName,
+                ChannelActivityPanel(
+                    isActive = isRideActive,
                     isMuted = isMuted,
                     micAmplitude = micAmplitude,
-                    peerAmplitude = peerAmplitude,
-                    onSwitchRoom = { showRoomDialog = true }
+                    peerAmplitude = peerAmplitude
                 )
             }
 
-            // ═══════════════════════════════════════════════════════════
-            // AUDIO ROUTE & WIND BOOST SETTINGS
-            // ═══════════════════════════════════════════════════════════
+            item {
+                TapToRideButton(
+                    isActive = isRideActive,
+                    connectionState = connectionState,
+                    onClick = { viewModel.onOneClickConnectToggle() }
+                )
+            }
+
+            // Secondary actions kept from the previous design: HUD, horn, rider name, bike
+            item {
+                QuickActionRow(
+                    riderName = riderName,
+                    bikeModel = bikeModel,
+                    onOpenHud = { viewModel.toggleRidingHud(true) },
+                    onAlertHorn = { viewModel.triggerEmergencyHorn() },
+                    onEditName = { showNameDialog = true },
+                    onEditBike = { showBikeDialog = true }
+                )
+            }
+
             item {
                 AudioControlCard(
                     currentRoute = currentRoute,
@@ -355,9 +240,12 @@ fun HomeScreen(
                 )
             }
 
-            item { Spacer(Modifier.height(16.dp)) }
+            item { IntercomGuideCard() }
+
+            item { Spacer(Modifier.navigationBarsPadding().height(16.dp)) }
         }
     }
+
 
     // ═══════════════════════════════════════════════════════════════════
     // DIALOGS: RIDER NAME, BIKE MODEL, ROOM SWITCH
@@ -1340,4 +1228,403 @@ fun RoomSwitchDialog(
             }
         }
     )
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ASTRARIDE "UNIVERSAL RIDER MESH" LAYOUT
+// ═══════════════════════════════════════════════════════════════════
+
+private val AstraBg = Color(0xFF0A0E17)
+private val AstraBar = Color(0xFF111827)
+private val AstraCard = Color(0xFF151C2A)
+private val AstraCardInner = Color(0xFF1C2433)
+private val AstraBorder = Color(0xFF2B3547)
+private val AstraBlue = Color(0xFF38BDF8)
+private val AstraGreen = Color(0xFF22C55E)
+private val AstraMuted = Color(0xFF94A3B8)
+private val AstraDim = Color(0xFF64748B)
+
+@Composable
+private fun AstraTopBar(
+    currentRoute: AudioRouteType,
+    isBluetoothConnected: Boolean,
+    onCycleRoute: () -> Unit
+) {
+    Surface(color = AstraBar, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("🏍️", fontSize = 26.sp)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("AstraRide", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                Text("Universal Rider Mesh", color = AstraGreen, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+            val (label, icon) = when (currentRoute) {
+                AudioRouteType.HELMET_BLUETOOTH -> "Helmet" to Icons.Filled.Headset
+                AudioRouteType.LOUDSPEAKER -> "Speaker" to Icons.AutoMirrored.Filled.VolumeUp
+                AudioRouteType.EARPIECE -> "Earpiece" to Icons.Filled.PhoneInTalk
+            }
+            Surface(
+                modifier = Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = onCycleRoute),
+                shape = RoundedCornerShape(14.dp),
+                color = AstraCardInner
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(icon, contentDescription = null, tint = if (isBluetoothConnected) AstraGreen else AstraBlue, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AstraPanel(
+    borderColor: Color = AstraBorder,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = AstraCard),
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Column(modifier = Modifier.padding(18.dp), content = content)
+    }
+}
+
+@Composable
+private fun ConvoyRoomPanel(
+    roomName: String,
+    connectionState: MeshConnectionState,
+    connectedRiders: List<com.bikeride.intercom.transport.local.nearby.ConnectedRider>,
+    myRiderName: String,
+    isMuted: Boolean,
+    onSelectPreset: (String) -> Unit,
+    onEditRoom: () -> Unit
+) {
+    val presets = listOf("CONVOY 1", "CONVOY 2", "SQUAD ALPHA", "APEX RIDERS", "SPEED RUN", "WEEKEND TOUR")
+    val statusDot = when (connectionState) {
+        MeshConnectionState.CONNECTED -> AstraGreen
+        MeshConnectionState.SEARCHING, MeshConnectionState.CONNECTING -> Color(0xFFFBBF24)
+        else -> AstraDim
+    }
+    val subtitle = when (connectionState) {
+        MeshConnectionState.CONNECTED -> "Live intercom · ${connectedRiders.size + 1} riders linked"
+        MeshConnectionState.SEARCHING -> "Room open · scanning for riders…"
+        MeshConnectionState.CONNECTING -> "Linking riders…"
+        else -> "Tap 'TAP TO RIDE' to open room"
+    }
+
+    AstraPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(12.dp).clip(CircleShape).background(statusDot))
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Convoy Room: $roomName",
+                    color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+                Text(subtitle, color = AstraMuted, fontSize = 13.sp)
+            }
+            Spacer(Modifier.width(8.dp))
+            Surface(
+                modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onEditRoom),
+                shape = RoundedCornerShape(12.dp),
+                color = AstraCardInner
+            ) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Edit, contentDescription = null, tint = AstraBlue, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Room", color = AstraBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            presets.forEach { preset ->
+                val selected = preset == roomName
+                Surface(
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onSelectPreset(preset) },
+                    shape = RoundedCornerShape(50),
+                    color = if (selected) AstraGreen.copy(alpha = 0.15f) else AstraCardInner,
+                    border = if (selected) BorderStroke(1.5.dp, AstraGreen) else null
+                ) {
+                    Text(
+                        preset,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
+                        color = if (selected) AstraGreen else Color(0xFFCBD5E1),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Text("CONNECTED RIDERS IN ROOM", color = AstraDim, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+        Spacer(Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RiderPill(name = "$myRiderName (You)", role = "Host", isMuted = isMuted)
+            connectedRiders.forEach { peer ->
+                RiderPill(name = peer.name, role = peer.connectionType, isMuted = peer.isMuted)
+            }
+            if (connectedRiders.isEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.dp, AstraBorder)
+                ) {
+                    Text(
+                        "Waiting for 2nd, 3rd biker to tap RIDE",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+                        color = AstraMuted, fontSize = 14.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RiderPill(name: String, role: String, isMuted: Boolean) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = AstraCardInner,
+        border = BorderStroke(1.dp, Color(0xFF3B475C))
+    ) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(if (isMuted) Color(0xFFFF5252) else AstraBlue))
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(if (isMuted) "$role · Muted" else role, color = AstraMuted, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HandsFreeMutePanel(
+    isMuted: Boolean,
+    lastVoiceCommand: String?,
+    onToggleMute: () -> Unit
+) {
+    AstraPanel(borderColor = Color(0xFF1E4F6E)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF1B3148)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.PanTool, contentDescription = null, tint = AstraBlue, modifier = Modifier.size(26.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Hands-Free Mute Control", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Wave glove or say 'Rider signing off'", color = AstraMuted, fontSize = 13.sp)
+            }
+            // Switch ON = mic live, OFF = muted
+            Switch(
+                checked = !isMuted,
+                onCheckedChange = { onToggleMute() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = AstraBlue,
+                    uncheckedThumbColor = Color(0xFFCBD5E1),
+                    uncheckedTrackColor = Color(0xFF7F1D1D)
+                )
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFF111827)).padding(14.dp)
+        ) {
+            Text("👋  Wave glove 5cm over top of phone to Mute / Unmute", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            Text("🎙️  Or speak: \"Rider signing off\" to Mute · \"Signing on\" to Unmute", color = AstraBlue, fontSize = 13.sp)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "🛡️  " + (lastVoiceCommand?.let { "Last: $it" } ?: "Standalone in-app detection · Zero Gemini popups"),
+                color = AstraDim, fontSize = 12.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (isMuted) "● MIC MUTED" else "● MIC LIVE",
+                color = if (isMuted) Color(0xFFFF5252) else AstraGreen,
+                fontSize = 12.sp, fontWeight = FontWeight.Black
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChannelActivityPanel(
+    isActive: Boolean,
+    isMuted: Boolean,
+    micAmplitude: Float,
+    peerAmplitude: Float
+) {
+    val speaking = maxOf(if (isMuted) 0f else micAmplitude, peerAmplitude)
+    val label = when {
+        !isActive -> "CHANNEL QUIET"
+        speaking > 0.05f -> "VOICE ACTIVE"
+        else -> "CHANNEL OPEN"
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = AstraCard)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = 22.dp, horizontal = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(label, color = AstraBlue, fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Spacer(Modifier.height(20.dp))
+            if (speaking > 0.05f) {
+                AudioWaveVisualizer(
+                    amplitude = speaking,
+                    isMuted = false,
+                    barCount = 13,
+                    maxHeight = 28.dp,
+                    modifier = Modifier.width(240.dp)
+                )
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(13) { Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF2DD4BF))) }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun TapToRideButton(
+    isActive: Boolean,
+    connectionState: MeshConnectionState,
+    onClick: () -> Unit
+) {
+    val transition = rememberInfiniteTransition(label = "rideGlow")
+    val glow by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse),
+        label = "glow"
+    )
+    val accent = if (isActive) Color(0xFFEF4444) else Color(0xFF0EA5E9)
+    Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(240.dp)
+                .shadow(28.dp, CircleShape, spotColor = accent.copy(alpha = glow), ambientColor = accent.copy(alpha = glow))
+                .clip(CircleShape)
+                .background(Brush.radialGradient(listOf(accent.copy(alpha = 0.55f), Color(0xFF0B1A2E))))
+                .border(4.dp, accent, CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = if (isActive) Icons.Filled.Stop else Icons.Filled.Mic,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(60.dp)
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    if (isActive) "END RIDE" else "TAP TO RIDE",
+                    color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp
+                )
+                Text(
+                    when (connectionState) {
+                        MeshConnectionState.CONNECTED -> "Intercom Live"
+                        MeshConnectionState.SEARCHING -> "Searching Riders…"
+                        MeshConnectionState.CONNECTING -> "Connecting…"
+                        else -> "1-Click Intercom"
+                    },
+                    color = Color(0xFFCBD5E1), fontSize = 15.sp, fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickActionRow(
+    riderName: String,
+    bikeModel: String,
+    onOpenHud: () -> Unit,
+    onAlertHorn: () -> Unit,
+    onEditName: () -> Unit,
+    onEditBike: () -> Unit
+) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        QuickActionTile(Modifier.weight(1f), Icons.Filled.Timeline, "Live HUD", AstraBlue, onOpenHud)
+        QuickActionTile(Modifier.weight(1f), Icons.Filled.Campaign, "Alert Horn", Color(0xFFFF9100), onAlertHorn)
+        QuickActionTile(Modifier.weight(1f), Icons.Filled.Person, riderName, AstraGreen, onEditName)
+        QuickActionTile(Modifier.weight(1f), Icons.Filled.TwoWheeler, bikeModel, Color(0xFFFF2A42), onEditBike)
+    }
+}
+
+@Composable
+private fun QuickActionTile(
+    modifier: Modifier,
+    icon: ImageVector,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = AstraCard,
+        border = BorderStroke(1.dp, AstraBorder)
+    ) {
+        Column(Modifier.padding(vertical = 12.dp, horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.height(6.dp))
+            Text(
+                label, color = AstraMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun IntercomGuideCard() {
+    AstraPanel(borderColor = Color.Transparent) {
+        Text("⚡ Multi-Biker Intercom Guide:", color = AstraGreen, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(10.dp))
+        listOf(
+            "1. Keep Room set to the same name (e.g. \"CONVOY 1\") on all phones.",
+            "2. Tap 'TAP TO RIDE' on Phone 1, Phone 2, Phone 3, etc.",
+            "3. They auto-link into full-duplex intercom!",
+            "4. Say \"MUTE\" while riding to mute hands-free anytime."
+        ).forEach {
+            Text(it, color = Color(0xFFCBD5E1), fontSize = 14.sp, lineHeight = 22.sp)
+            Spacer(Modifier.height(4.dp))
+        }
+    }
 }
