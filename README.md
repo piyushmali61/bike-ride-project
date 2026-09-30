@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🏍️ AstraRide — Smart Hybrid Intercom
+# 🏍️ AstraRide — Smart Hybrid Convoy Intercom
 ### *Next-Generation Real-Time Vehicle-to-Vehicle Voice Mesh for Riders & Convoys*
 
 <p align="center">
@@ -9,8 +9,9 @@
 
 [![Studio](https://img.shields.io/badge/Crafted%20By-Mythic%20Bharat%20Studios-orange?style=for-the-badge&logo=android)](https://github.com/piyushmali61)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B%20(API%2029--35)-brightgreen?style=for-the-badge&logo=android)](https://android.com)
-[![Release](https://img.shields.io/badge/Version-1.0.0--Release-blue?style=for-the-badge&logo=github)](https://github.com/piyushmali61/bike-ride-project/releases/tag/v1.0.0)
+[![Release](https://img.shields.io/badge/Version-1.1.0--Release-blue?style=for-the-badge&logo=github)](https://github.com/piyushmali61/bike-ride-project/releases/tag/v1.0.0)
 [![Battery](https://img.shields.io/badge/Battery-VAD%20%2B%20DTX%20Optimized-success?style=for-the-badge&logo=speedtest)](https://github.com/piyushmali61/bike-ride-project)
+[![Mesh](https://img.shields.io/badge/Mesh-Multi--Biker%20Cluster-purple?style=for-the-badge&logo=bluetooth)](https://github.com/piyushmali61/bike-ride-project)
 
 <br/>
 
@@ -18,7 +19,7 @@
 **Get the production release Android application directly on your phone:**
 
 <a href="https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk">
-  <img src="https://img.shields.io/badge/DOWNLOAD%20ASTRARIDE%20INTERCOM-RELEASE%20APK%20(46%20MB)-0284c7?style=for-the-badge&logo=android&logoColor=white" height="46" />
+  <img src="https://img.shields.io/badge/DOWNLOAD%20ASTRARIDE%20INTERCOM-RELEASE%20APK%20(46.9%20MB)-0284c7?style=for-the-badge&logo=android&logoColor=white" height="48" />
 </a>
 
 <p><em>Engineered and optimized for Samsung Galaxy M35, Samsung Galaxy S25 FE, and all modern Android devices worldwide (Android 10 to 15+).</em></p>
@@ -27,27 +28,35 @@
 
 ---
 
-### ⚡ What is AstraRide?
+## ⚡ What is AstraRide?
 
-**AstraRide** is a high-performance, hands-free, full-duplex motorcycle & vehicle convoy smart intercom developed by **Mythic Bharat Studios**. It solves the universal problem riders face: **what happens when you ride out of local radio range?**
+**AstraRide** is an off-grid, low-latency, full-duplex motorcycle & vehicle convoy smart intercom developed by **Mythic Bharat Studios**. It bridges local ad-hoc radio mesh and cloud connectivity into one seamless experience:
 
-Traditional Bluetooth intercoms cut off when separated by >100m. Cellular phone calls drop in tunnels and incur continuous network latency. 
-
-**AstraRide bridges both worlds through seamless dynamic handover:**
 1. **OFF-GRID MULTI-BIKER ROOM MESH**: Direct peer-to-peer Wi-Fi Direct / Google Nearby Connections cluster (`P2P_CLUSTER`) allowing **2, 3, 4+ bikers** to connect in the same Convoy Room with **zero internet or cell reception**.
-2. **HANDS-FREE VOICE MUTE**: While riding at speed, bikers can simply speak **"MUTE"** or **"UNMUTE"** without taking their hands off the handlebars or touching their phone. Instant earcon chime audio confirms state changes.
-3. **POP-UP NOTIFICATION QUICK CONTROLS**: High-reliability foreground notification with live dynamic "Mute" / "Unmute" buttons and 1-tap "End Ride" responding instantly on Android 12–15 and Samsung OneUI.
-4. **CLOUD WEBRTC BACKBONE**: Encrypted unordered WebRTC audio channel via secure signaling when distance opens between riders.
-5. **ZERO-INTERRUPTION HANDOVER**: The proprietary `HandoverController` state machine automatically arbitrates the cleanest path in real time without audio drops.
+2. **HANDS-FREE VOICE MUTE**: While riding at highway speeds, bikers can simply speak **"MUTE"** or **"UNMUTE"** to toggle their microphone hands-free without taking their hands off the handlebars.
+3. **EARCON CONFIRMATION CHIMES**: Real-time synthesized chimes played directly into the helmet confirm mute (`480Hz → 320Hz`) and unmute (`440Hz → 880Hz`) states.
+4. **POP-UP NOTIFICATION QUICK CONTROLS**: High-reliability foreground notification with live dynamic "Mute" / "Unmute" buttons and 1-tap "End Ride" responding instantly across Android 12–15 and Samsung OneUI.
+5. **CLOUD WEBRTC BACKBONE**: Encrypted unordered WebRTC audio channel via secure signaling when distance opens between riders.
+6. **ZERO-INTERRUPTION HANDOVER**: Proprietary state machine arbitrates the cleanest path in real time without audio drops.
 
 ---
 
 ## 👥 Multi-Biker Convoy Room System
 
 Connect 2 or more bikers into a unified, full-duplex intercom cluster:
+
+```mermaid
+graph TD
+    subgraph "Convoy Room Mesh (P2P_CLUSTER)"
+        Biker1["🏍️ Rider 1 (Host)<br/>Samsung M35"] <-->|Full Duplex Audio| Biker2["🏍️ Rider 2<br/>Samsung S25 FE"]
+        Biker1 <-->|Full Duplex Audio| Biker3["🏍️ Rider 3<br/>Android Device"]
+        Biker2 <-->|Full Duplex Audio| Biker3
+    end
+```
+
 * **Preset Rooms**: Choose from `CONVOY 1`, `CONVOY 2`, `SQUAD ALPHA`, `APEX`, or create your own custom Room Code.
-* **Full-Duplex Multi-Party Audio**: All bikers in the room hear each other simultaneously with crystal-clear hardware AEC/NS.
-* **Live Rider Roster**: View all connected bikers with live speaking badges, volume levels, and individual mute indicators.
+* **Full-Duplex Multi-Party Audio**: All bikers in the room hear each other simultaneously with hardware Acoustic Echo Cancellation (AEC) and Noise Suppression (NS).
+* **Live Rider Roster**: View all connected bikers with live speaking badges (green pulsing border), volume levels, and individual mute indicators.
 * **Dynamic Clustering**: Bikers can join or rejoin the room seamlessly without restarting the ride.
 
 ---
@@ -55,10 +64,23 @@ Connect 2 or more bikers into a unified, full-duplex intercom cluster:
 ## 🗣️ Hands-Free Voice Commands ("Say MUTE to Mute")
 
 Riding at highway speeds with thick leather riding gloves makes touching screens dangerous:
-* **"Mute"**: Say *"MUTE"* or *"MIC OFF"* to instantly mute your microphone. Plays a low-pitch confirmation chime into your helmet.
-* **"Unmute"**: Say *"UNMUTE"* or *"MIC ON"* to instantly unmute. Plays a crisp high-pitch confirmation chime.
-* **"Horn"**: Say *"HORN"* or *"ALERT"* to sound the convoy siren across all connected riders.
-* Runs continuously and offline with zero cellular data required.
+
+| Spoken Voice Command | Triggered Action | Audio Helmet Feedback |
+|---|---|---|
+| **"MUTE"** / **"MIC OFF"** | Mutes local microphone instantly | Low descending double-tone (`480Hz → 320Hz`) |
+| **"UNMUTE"** / **"MIC ON"** | Unmutes local microphone instantly | Crisp ascending double-tone (`440Hz → 880Hz`) |
+| **"HORN"** / **"ALERT"** | Broadcasts convoy emergency siren | Dual-tone siren (`880Hz / 1760Hz`) |
+
+* Runs continuously, offline, and privately with zero cellular data required.
+* Includes a one-tap toggle on the Home Cockpit to enable or disable voice recognition.
+
+---
+
+## 🔕 Pop-Up Notification & HUD Controls
+
+* **High-Reliability Action Receiver**: Built with `IntercomActionReceiver`, guaranteeing that notification action clicks are never ignored or blocked by Android 14/15 OneUI battery managers.
+* **Dynamic Action Toggle**: The pop-up button automatically changes between **`"🔇 Mute"`** and **`"🎙️ Unmute"`** with real-time icon updates.
+* **One-Tap End Ride**: Instantly ends the intercom session from the notification drawer, cockpit, or full-screen Riding HUD.
 
 ---
 
@@ -90,9 +112,10 @@ To ensure your phone's battery lasts throughout long touring days without draini
 | **Language & Build** | **Kotlin 2.1.0**, Android Gradle Plugin 8.7.3, KSP |
 | **UI Framework** | **Jetpack Compose**, Material 3 OLED Dark Palette (High-Contrast) |
 | **Power Management** | Hardware VAD + DTX silence suppression, Partial WakeLock, AMOLED black HUD |
+| **Voice Recognition** | Offline `SpeechRecognizer` + continuous acoustic spotter |
 | **State & Concurrency** | Reactive `StateFlow`, Kotlin Coroutines, Unidirectional Data Flow |
 | **Dependency Injection** | **Google Dagger Hilt** |
-| **Off-Grid Transport** | **Google Nearby Connections** (`P2P_CLUSTER`) & raw Wi-Fi Direct UDP mesh |
+| **Off-Grid Transport** | **Google Nearby Connections** (`Strategy.P2P_CLUSTER`) & raw Wi-Fi Direct UDP mesh |
 | **Cloud Transport** | **WebRTC DataChannel** (`ordered=false, maxRetransmits=0`) eliminating TCP head-of-line blocking |
 | **Audio DSP** | Hardware AEC (Acoustic Echo Cancellation), NS (Noise Suppression), AGC, +12dB Wind Boost |
 | **Bluetooth Routing** | `AudioManager.setCommunicationDevice` (API 31+) targeting Cardo, Sena, and helmet headsets |
@@ -103,7 +126,7 @@ To ensure your phone's battery lasts throughout long touring days without draini
 ## 📦 Direct APK Installation
 
 ### 1. Download Link
-* 🚀 [**AstraRide-Intercom.apk**](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk) *(46 MB, Optimized Production Release)*
+* 🚀 [**AstraRide-Intercom.apk**](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk) *(46.9 MB, Optimized Production Release)*
 
 ### 2. Quick Install via USB (ADB)
 ```powershell
@@ -112,6 +135,14 @@ adb install -r "AstraRide-Intercom.apk"
 ```
 
 ### 3. How to Connect in 1-Click:
-1. Open **AstraRide** on both phones.
-2. Tap the central **"TAP TO RIDE"** radar button on both devices.
-3. Both phones discover and accept each other automatically within 1–2 seconds — **no internet required**!
+1. Open **AstraRide** on all bikes.
+2. Ensure you have the same Convoy Room selected (e.g. `"CONVOY 1"`).
+3. Tap the central **"TAP TO RIDE"** radar button on each phone.
+4. All phones discover and link automatically within 1–2 seconds — **no internet required**!
+5. Speak **"Mute"** anytime while riding to mute hands-free!
+
+---
+
+<div align="center">
+  <p>© 2026 Mythic Bharat Studios. Built for motorcyclists worldwide.</p>
+</div>
