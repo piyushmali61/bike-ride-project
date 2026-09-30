@@ -122,6 +122,43 @@ class AudioPlaybackEngine {
         }
     }
 
+    /**
+     * Synthesizes and plays an earcon chime confirming Mute or Unmute state.
+     * Muted: descending double-tone (480Hz -> 320Hz)
+     * Unmuted: ascending double-tone (440Hz -> 880Hz)
+     */
+    fun playMuteChime(isMuted: Boolean, scope: CoroutineScope) {
+        scope.launch(Dispatchers.Default) {
+            val track = audioTrack ?: return@launch
+            val toneDurationMs = 80
+            val samplesPerTone = (AudioConfig.SAMPLE_RATE_HZ * toneDurationMs) / 1000
+            val totalSamples = samplesPerTone * 2
+            val chimeBuffer = ByteArray(totalSamples * 2)
+            val shortBuffer = ShortArray(totalSamples)
+
+            val f1 = if (isMuted) 480.0 else 440.0
+            val f2 = if (isMuted) 320.0 else 880.0
+
+            for (i in 0 until totalSamples) {
+                val isSecondTone = i >= samplesPerTone
+                val freq = if (isSecondTone) f2 else f1
+                val sampleInTone = if (isSecondTone) i - samplesPerTone else i
+                val t = sampleInTone.toDouble() / AudioConfig.SAMPLE_RATE_HZ
+                val angle = 2.0 * Math.PI * freq * t
+                val envelope = if (sampleInTone < samplesPerTone * 0.8) 1.0 else (samplesPerTone - sampleInTone).toDouble() / (samplesPerTone * 0.2)
+                shortBuffer[i] = (sin(angle) * 18000 * envelope).toInt().toShort()
+            }
+
+            ByteBuffer.wrap(chimeBuffer).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(shortBuffer)
+
+            try {
+                track.write(chimeBuffer, 0, chimeBuffer.size)
+            } catch (e: Exception) {
+                Timber.e(e, "Error playing mute chime")
+            }
+        }
+    }
+
     fun stopPlayback() {
         alertJob?.cancel()
         alertJob = null

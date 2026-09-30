@@ -90,6 +90,11 @@
             android:exported="false"
             android:foregroundServiceType="microphone|connectedDevice" />
 
+        <!-- Notification Actions Receiver for 100% Reliable Pop-up Mute & End Ride -->
+        <receiver
+            android:name="com.bikeride.intercom.service.IntercomActionReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>

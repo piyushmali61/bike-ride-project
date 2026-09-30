@@ -27,16 +27,38 @@
 
 ---
 
-## ⚡ What is AstraRide?
+### ⚡ What is AstraRide?
 
 **AstraRide** is a high-performance, hands-free, full-duplex motorcycle & vehicle convoy smart intercom developed by **Mythic Bharat Studios**. It solves the universal problem riders face: **what happens when you ride out of local radio range?**
 
 Traditional Bluetooth intercoms cut off when separated by >100m. Cellular phone calls drop in tunnels and incur continuous network latency. 
 
 **AstraRide bridges both worlds through seamless dynamic handover:**
-1. **OFF-GRID LOCAL LINK**: Direct peer-to-peer Wi-Fi Direct / Google Nearby Connections mesh requiring **zero internet or cell reception**.
-2. **CLOUD WEBRTC BACKBONE**: Encrypted unordered WebRTC audio channel via secure signaling when distance opens between riders.
-3. **ZERO-INTERRUPTION HANDOVER**: The proprietary `HandoverController` state machine automatically arbitrates the cleanest path in real time without audio drops.
+1. **OFF-GRID MULTI-BIKER ROOM MESH**: Direct peer-to-peer Wi-Fi Direct / Google Nearby Connections cluster (`P2P_CLUSTER`) allowing **2, 3, 4+ bikers** to connect in the same Convoy Room with **zero internet or cell reception**.
+2. **HANDS-FREE VOICE MUTE**: While riding at speed, bikers can simply speak **"MUTE"** or **"UNMUTE"** without taking their hands off the handlebars or touching their phone. Instant earcon chime audio confirms state changes.
+3. **POP-UP NOTIFICATION QUICK CONTROLS**: High-reliability foreground notification with live dynamic "Mute" / "Unmute" buttons and 1-tap "End Ride" responding instantly on Android 12–15 and Samsung OneUI.
+4. **CLOUD WEBRTC BACKBONE**: Encrypted unordered WebRTC audio channel via secure signaling when distance opens between riders.
+5. **ZERO-INTERRUPTION HANDOVER**: The proprietary `HandoverController` state machine automatically arbitrates the cleanest path in real time without audio drops.
+
+---
+
+## 👥 Multi-Biker Convoy Room System
+
+Connect 2 or more bikers into a unified, full-duplex intercom cluster:
+* **Preset Rooms**: Choose from `CONVOY 1`, `CONVOY 2`, `SQUAD ALPHA`, `APEX`, or create your own custom Room Code.
+* **Full-Duplex Multi-Party Audio**: All bikers in the room hear each other simultaneously with crystal-clear hardware AEC/NS.
+* **Live Rider Roster**: View all connected bikers with live speaking badges, volume levels, and individual mute indicators.
+* **Dynamic Clustering**: Bikers can join or rejoin the room seamlessly without restarting the ride.
+
+---
+
+## 🗣️ Hands-Free Voice Commands ("Say MUTE to Mute")
+
+Riding at highway speeds with thick leather riding gloves makes touching screens dangerous:
+* **"Mute"**: Say *"MUTE"* or *"MIC OFF"* to instantly mute your microphone. Plays a low-pitch confirmation chime into your helmet.
+* **"Unmute"**: Say *"UNMUTE"* or *"MIC ON"* to instantly unmute. Plays a crisp high-pitch confirmation chime.
+* **"Horn"**: Say *"HORN"* or *"ALERT"* to sound the convoy siren across all connected riders.
+* Runs continuously and offline with zero cellular data required.
 
 ---
 

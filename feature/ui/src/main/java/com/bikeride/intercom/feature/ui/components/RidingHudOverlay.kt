@@ -21,18 +21,21 @@ import androidx.compose.ui.unit.sp
 import com.bikeride.intercom.bluetooth.AudioRouteType
 
 /**
- * Ultra-high-contrast OLED black full-screen HUD mode.
+ * Ultra-high-contrast OLED black full-screen HUD mode for motorcyclists.
  * Features oversized touch targets (≥ 120dp) specifically engineered
  * for handlebar-mounted phones and thick motorcycle riding gloves.
+ * Displays real-time Room status and Voice Mute indicator ("Say Mute to Mute").
  */
 @Composable
 fun RidingHudOverlay(
+    roomName: String,
+    bikerCount: Int,
     isMuted: Boolean,
     onToggleMute: () -> Unit,
     audioRoute: AudioRouteType,
     onCycleRoute: () -> Unit,
     onTriggerHorn: () -> Unit,
-    peerName: String?,
+    onEndRide: () -> Unit,
     latencyMs: Long,
     amplitude: Float,
     onExitHud: () -> Unit,
@@ -64,14 +67,14 @@ fun RidingHudOverlay(
             ) {
                 Column {
                     Text(
-                        text = "🟢 RIDE ACTIVE · ${latencyMs}ms",
+                        text = "🏍️ ROOM: $roomName",
                         color = Color(0xFF00E676),
                         fontWeight = FontWeight.Black,
                         fontSize = 18.sp
                     )
                     Text(
-                        text = "Connected: ${peerName ?: "Rider 2"}",
-                        color = Color.White.copy(alpha = 0.7f),
+                        text = "🟢 $bikerCount Biker${if (bikerCount > 1) "s" else ""} Connected · ${latencyMs}ms",
+                        color = Color.White.copy(alpha = 0.85f),
                         fontSize = 14.sp
                     )
                 }
@@ -83,7 +86,28 @@ fun RidingHudOverlay(
                 ) {
                     Icon(Icons.Filled.Close, contentDescription = "Exit HUD", tint = Color.White)
                     Spacer(Modifier.width(4.dp))
-                    Text("EXIT HUD", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("MINIMIZE", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // Voice Command Banner
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0xFF1E293B),
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Filled.RecordVoiceOver, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Voice Command Active: Just say \"MUTE\" or \"UNMUTE\"",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
 
@@ -92,16 +116,16 @@ fun RidingHudOverlay(
                 amplitude = amplitude,
                 isMuted = isMuted,
                 barCount = 13,
-                maxHeight = 80.dp,
-                modifier = Modifier.padding(vertical = 12.dp)
+                maxHeight = 70.dp,
+                modifier = Modifier.padding(vertical = 8.dp)
             )
 
             // Primary Glove-Friendly Controls (Centerpiece)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                // Giant 140dp MUTE button
+                // Giant 150dp MUTE button
                 Box(
                     modifier = Modifier
                         .size(150.dp)
@@ -124,6 +148,11 @@ fun RidingHudOverlay(
                             color = Color.White,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 16.sp
+                        )
+                        Text(
+                            text = "Tap or say 'Mute'",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 11.sp
                         )
                     }
                 }
@@ -195,7 +224,21 @@ fun RidingHudOverlay(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            // Big Glove-Friendly End Ride button in HUD
+            Button(
+                onClick = onEndRide,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C))
+            ) {
+                Icon(Icons.Filled.CallEnd, contentDescription = null, tint = Color.White)
+                Spacer(Modifier.width(8.dp))
+                Text("END RIDE CONVOY", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+            }
+
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

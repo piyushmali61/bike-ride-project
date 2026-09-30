@@ -30,8 +30,11 @@ class AudioEngine @Inject constructor() {
         playback.stopPlayback()
     }
 
-    fun setMuted(muted: Boolean) {
+    fun setMuted(muted: Boolean, scope: CoroutineScope? = null) {
         capture.setMuted(muted)
+        scope?.let {
+            playback.playMuteChime(muted, it)
+        }
     }
 
     fun setVolumeBoost(multiplier: Float) {
@@ -44,5 +47,9 @@ class AudioEngine @Inject constructor() {
 
     fun playEmergencyHorn(scope: CoroutineScope) {
         playback.playEmergencyHornAlert(scope)
+    }
+
+    fun playMuteChime(muted: Boolean, scope: CoroutineScope) {
+        playback.playMuteChime(muted, scope)
     }
 }

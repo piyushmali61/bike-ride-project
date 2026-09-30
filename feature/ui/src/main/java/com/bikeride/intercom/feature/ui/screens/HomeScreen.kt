@@ -8,8 +8,10 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,12 +21,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -38,8 +36,8 @@ import com.bikeride.intercom.transport.local.nearby.MeshConnectionState
 /**
  * AstraRide Unified Cockpit
  *
- * An intuitive, glove-friendly, zero-hassle 1-Click motorcycle intercom interface.
- * Built for seamless pairing between any Android devices (including Samsung M35 & S25 FE).
+ * Supports Multi-Biker Room System (2, 3, 4+ bikers in full-duplex mesh),
+ * Hands-Free Voice Mute ("Say MUTE to Mute"), and 1-Click zero-hassle pairing.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,10 +51,10 @@ fun HomeScreen(
     onRidingMode: () -> Unit = {}
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
-    val connectedPeerName by viewModel.connectedPeerName.collectAsState()
+    val connectedRiders by viewModel.connectedRiders.collectAsState()
+    val currentRoom by viewModel.currentRoom.collectAsState()
     val latencyMs by viewModel.latencyMs.collectAsState()
     val isMuted by viewModel.isMuted.collectAsState()
-    val peerIsMuted by viewModel.peerIsMuted.collectAsState()
     val micAmplitude by viewModel.micAmplitude.collectAsState()
     val peerAmplitude by viewModel.peerAmplitude.collectAsState()
     val currentRoute by viewModel.currentAudioRoute.collectAsState()
@@ -65,8 +63,10 @@ fun HomeScreen(
     val isRidingHudOpen by viewModel.isRidingHudOpen.collectAsState()
     val isEmergencyAlert by viewModel.isEmergencyAlertActive.collectAsState()
     val rideCode by viewModel.customRideCode.collectAsState()
+    val isVoiceControlEnabled by viewModel.isVoiceControlEnabled.collectAsState()
+    val lastVoiceCommand by viewModel.lastVoiceCommand.collectAsState()
 
-    var showRideCodeDialog by remember { mutableStateOf(false) }
+    var showRoomDialog by remember { mutableStateOf(false) }
 
     // Required Android Permissions across API 29-35
     val requiredPermissions = remember {
@@ -99,12 +99,14 @@ fun HomeScreen(
     // Full-screen Riding HUD Mode
     if (isRidingHudOpen) {
         RidingHudOverlay(
+            roomName = currentRoom,
+            bikerCount = maxOf(1, connectedRiders.size + 1),
             isMuted = isMuted,
             onToggleMute = { viewModel.toggleMute() },
             audioRoute = currentRoute,
             onCycleRoute = { viewModel.cycleAudioRoute() },
             onTriggerHorn = { viewModel.triggerEmergencyHorn() },
-            peerName = connectedPeerName,
+            onEndRide = { viewModel.endRideSession() },
             latencyMs = latencyMs,
             amplitude = if (micAmplitude > 0.05f) micAmplitude else peerAmplitude,
             onExitHud = { viewModel.toggleRidingHud(false) }
@@ -178,7 +180,6 @@ fun HomeScreen(
         }
     ) { paddingValues ->
 
-        // Screen border flash effect on emergency horn
         val borderModifier = if (isEmergencyAlert) {
             Modifier.border(4.dp, Color(0xFFFF1744), RoundedCornerShape(0.dp))
         } else Modifier
@@ -189,14 +190,14 @@ fun HomeScreen(
                 .then(borderModifier)
                 .background(Color(0xFF0B0F19))
                 .padding(paddingValues)
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item { Spacer(modifier = Modifier.height(6.dp)) }
+            item { Spacer(modifier = Modifier.height(2.dp)) }
 
             // ═══════════════════════════════════════════════════════════
-            // Status & Link Card
+            // Multi-Biker Room Card & Roster
             // ═══════════════════════════════════════════════════════════
             item {
                 Card(
@@ -205,71 +206,233 @@ fun HomeScreen(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF131D31)),
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
-                        when (connectionState) {
-                            MeshConnectionState.CONNECTED -> Color(0xFF00E676).copy(alpha = 0.4f)
-                            MeshConnectionState.SEARCHING -> Color(0xFFFF9100).copy(alpha = 0.4f)
-                            else -> Color(0xFF334155)
-                        }
+                        if (connectedRiders.isNotEmpty()) Color(0xFF00E676).copy(alpha = 0.5f) else Color(0xFF334155)
                     )
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        when (connectionState) {
-                                            MeshConnectionState.CONNECTED -> Color(0xFF00E676)
-                                            MeshConnectionState.SEARCHING -> Color(0xFFFF9100)
-                                            MeshConnectionState.CONNECTING -> Color(0xFF00B0FF)
-                                            else -> Color(0xFF64748B)
-                                        }
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            when {
+                                                connectedRiders.isNotEmpty() -> Color(0xFF00E676)
+                                                connectionState == MeshConnectionState.SEARCHING -> Color(0xFFFF9100)
+                                                else -> Color(0xFF64748B)
+                                            }
+                                        )
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "Convoy Room: $currentRoom",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White
                                     )
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = when (connectionState) {
-                                        MeshConnectionState.CONNECTED -> "P2P Mesh Link Active"
-                                        MeshConnectionState.SEARCHING -> "Seeking Nearby Rider..."
-                                        MeshConnectionState.CONNECTING -> "Establishing Secure Link..."
-                                        else -> "Mesh Ready · Offline Mode"
-                                    },
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = when (connectionState) {
-                                        MeshConnectionState.CONNECTED -> "Peer: ${connectedPeerName ?: "Rider"} · 100% Quality"
-                                        MeshConnectionState.SEARCHING -> "Bring devices close & tap Ride on both"
-                                        else -> "Zero internet · Wi-Fi Direct + Bluetooth"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF94A3B8)
-                                )
+                                    Text(
+                                        text = if (connectedRiders.isNotEmpty()) {
+                                            "🟢 ${connectedRiders.size + 1} Bikers in Room · Full Duplex"
+                                        } else if (connectionState == MeshConnectionState.SEARCHING) {
+                                            "🔍 Searching for nearby room riders..."
+                                        } else {
+                                            "Tap 'TAP TO RIDE' to open room"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                }
+                            }
+
+                            // Change Room button
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF1E293B),
+                                modifier = Modifier.clickable { showRoomDialog = true }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Filled.Edit, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(14.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Room", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
                             }
                         }
 
-                        if (connectionState == MeshConnectionState.CONNECTED) {
+                        // Room Preset Chips
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("CONVOY 1", "CONVOY 2", "SQUAD ALPHA", "APEX").forEach { room ->
+                                val isSelected = room == currentRoom
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = if (isSelected) Color(0xFF00E676).copy(alpha = 0.2f) else Color(0xFF1E293B),
+                                    border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676)) else null,
+                                    modifier = Modifier.clickable {
+                                        viewModel.setCustomRideCode(room)
+                                    }
+                                ) {
+                                    Text(
+                                        text = room,
+                                        color = if (isSelected) Color(0xFF00E676) else Color(0xFF94A3B8),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Connected Bikers Live Roster
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            "CONNECTED RIDERS IN ROOM",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF64748B),
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Local Rider Chip
+                            RiderBadgeChip(
+                                name = "You (${Build.MODEL})",
+                                isHost = true,
+                                isMuted = isMuted,
+                                isSpeaking = micAmplitude > 0.08f && !isMuted
+                            )
+
+                            // Remote Connected Bikers
+                            connectedRiders.values.forEach { peer ->
+                                RiderBadgeChip(
+                                    name = peer.name,
+                                    isHost = false,
+                                    isMuted = peer.isMuted,
+                                    isSpeaking = peer.isSpeaking
+                                )
+                            }
+
+                            if (connectedRiders.isEmpty()) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF0F172A),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+                                ) {
+                                    Text(
+                                        "Waiting for 2nd, 3rd biker to tap Ride...",
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // Hands-Free Voice Mute Control Card
+            // ═══════════════════════════════════════════════════════════
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF131D31)),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isVoiceControlEnabled) Color(0xFF38BDF8).copy(alpha = 0.35f) else Color(0xFF334155)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF38BDF8).copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Filled.RecordVoiceOver,
+                                        contentDescription = null,
+                                        tint = Color(0xFF38BDF8),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        "Voice Mute Control",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        "Say 'MUTE' or 'UNMUTE' hands-free",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                }
+                            }
+
+                            Switch(
+                                checked = isVoiceControlEnabled,
+                                onCheckedChange = { viewModel.toggleVoiceControl(it) },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = Color(0xFF38BDF8)
+                                )
+                            )
+                        }
+
+                        if (isVoiceControlEnabled) {
+                            Spacer(Modifier.height(10.dp))
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF00E676).copy(alpha = 0.15f)
+                                color = Color(0xFF0F172A),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    "${latencyMs}ms",
-                                    color = Color(0xFF00E676),
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("⚡", fontSize = 14.sp)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = if (lastVoiceCommand != null) {
+                                            "Heard command: '$lastVoiceCommand' · Action executed"
+                                        } else {
+                                            "Listening continuously while riding. Try saying \"Mute\"!"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (lastVoiceCommand != null) Color(0xFF00E676) else Color(0xFF38BDF8)
+                                    )
+                                }
                             }
                         }
                     }
@@ -292,9 +455,7 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (connectionState == MeshConnectionState.CONNECTED) {
-                                if (isMuted) "MIC MUTED" else if (micAmplitude > 0.08f) "YOU ARE SPEAKING" else if (peerAmplitude > 0.08f) "RIDER SPEAKING" else "CHANNEL QUIET"
-                            } else "VOICE RADAR",
+                            text = if (isMuted) "MIC MUTED" else if (micAmplitude > 0.08f) "YOU ARE SPEAKING" else if (peerAmplitude > 0.08f) "CONVOY SPEAKING" else "CHANNEL QUIET",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (isMuted) Color(0xFFFF5252) else Color(0xFF00B0FF),
@@ -305,9 +466,9 @@ fun HomeScreen(
 
                         AudioWaveVisualizer(
                             amplitude = if (micAmplitude > 0.05f) micAmplitude else peerAmplitude,
-                            isMuted = isMuted && connectionState == MeshConnectionState.CONNECTED,
-                            barCount = 11,
-                            maxHeight = 64.dp
+                            isMuted = isMuted,
+                            barCount = 13,
+                            maxHeight = 60.dp
                         )
                     }
                 }
@@ -320,7 +481,7 @@ fun HomeScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     OneClickRadarButton(
@@ -331,12 +492,12 @@ fun HomeScreen(
             }
 
             // ═══════════════════════════════════════════════════════════
-            // Active Cockpit Controls (When Connected)
+            // Cockpit Controls (When Active / Connected)
             // ═══════════════════════════════════════════════════════════
-            if (connectionState == MeshConnectionState.CONNECTED) {
+            if (connectionState == MeshConnectionState.CONNECTED || connectionState == MeshConnectionState.SEARCHING) {
                 item {
                     Text(
-                        "Rider Cockpit Controls",
+                        "Cockpit Motorcycle Controls",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -355,7 +516,7 @@ fun HomeScreen(
                                 modifier = Modifier.weight(1f),
                                 icon = if (isMuted) Icons.Filled.MicOff else Icons.Filled.Mic,
                                 title = if (isMuted) "MUTED" else "MIC LIVE",
-                                subtitle = "Tap to toggle",
+                                subtitle = "Tap or say 'Mute'",
                                 color = if (isMuted) Color(0xFFFF1744) else Color(0xFF00E676),
                                 onClick = { viewModel.toggleMute() }
                             )
@@ -388,7 +549,7 @@ fun HomeScreen(
                                 modifier = Modifier.weight(1f),
                                 icon = Icons.Filled.Campaign,
                                 title = "ALERT HORN",
-                                subtitle = "Sound convoy siren",
+                                subtitle = "Siren all bikers",
                                 color = Color(0xFFFF9100),
                                 onClick = { viewModel.triggerEmergencyHorn() }
                             )
@@ -447,10 +608,10 @@ fun HomeScreen(
                     }
                 }
 
-                // Disconnect End Ride Button
+                // Explicit End Ride Button
                 item {
                     Button(
-                        onClick = { viewModel.onOneClickConnectToggle() },
+                        onClick = { viewModel.endRideSession() },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
@@ -460,7 +621,7 @@ fun HomeScreen(
                         Icon(Icons.Filled.CallEnd, contentDescription = null, tint = Color.White)
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "END RIDE SESSION",
+                            "END RIDE CONVOY",
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                             fontSize = 15.sp
@@ -468,55 +629,7 @@ fun HomeScreen(
                     }
                 }
             } else {
-                // ═══════════════════════════════════════════════════════════
-                // Idle Settings & Ride Code
-                // ═══════════════════════════════════════════════════════════
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showRideCodeDialog = true },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF131D31))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF00B0FF).copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Filled.Group, contentDescription = null, tint = Color(0xFF00B0FF))
-                                }
-                                Spacer(Modifier.width(14.dp))
-                                Column {
-                                    Text(
-                                        "Ride Group Mesh",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        "Code: $rideCode (Tap to change)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF94A3B8)
-                                    )
-                                }
-                            }
-                            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFF64748B))
-                        }
-                    }
-                }
-
-                // Quick explanation tip
+                // Quick Guide Card
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -530,15 +643,16 @@ fun HomeScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                "⚡ How to connect in 1-Click:",
+                                "⚡ Multi-Biker Intercom Guide:",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF00E676)
                             )
                             Text(
-                                "1. Install this AstraRide app on Phone 1 (e.g. Samsung M35) and Phone 2 (e.g. Samsung S25 FE).\n" +
-                                "2. Tap the big 'TAP TO RIDE' button on both phones.\n" +
-                                "3. They automatically find each other, pair instantly, and connect crystal-clear voice intercom!",
+                                "1. Keep Room set to the same name (e.g. \"CONVOY 1\") on all phones.\n" +
+                                "2. Tap 'TAP TO RIDE' on Phone 1, Phone 2, Phone 3, etc.\n" +
+                                "3. They auto-link into full-duplex intercom!\n" +
+                                "4. Say \"MUTE\" while riding to mute hands-free anytime.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFCBD5E1),
                                 lineHeight = 20.sp
@@ -548,46 +662,92 @@ fun HomeScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item { Spacer(modifier = Modifier.height(20.dp)) }
         }
     }
 
-    // Ride Code Dialog
-    if (showRideCodeDialog) {
-        var inputCode by remember { mutableStateOf(rideCode) }
+    // Room Dialog
+    if (showRoomDialog) {
+        var inputRoom by remember { mutableStateOf(currentRoom) }
         AlertDialog(
-            onDismissRequest = { showRideCodeDialog = false },
-            title = { Text("Set Private Ride Group Code") },
+            onDismissRequest = { showRoomDialog = false },
+            title = { Text("Set Convoy Room Name") },
             text = {
                 Column {
                     Text(
-                        "Set matching codes on both phones to ensure you pair exclusively with your riding partner:",
+                        "All bikers entering this Room name will connect into the same group intercom mesh:",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
-                        value = inputCode,
-                        onValueChange = { inputCode = it.take(6).uppercase() },
-                        label = { Text("Ride Code") },
+                        value = inputRoom,
+                        onValueChange = { inputRoom = it.take(16).uppercase() },
+                        label = { Text("Room Name / Code") },
                         singleLine = true
                     )
                 }
             },
             confirmButton = {
                 Button(onClick = {
-                    viewModel.setCustomRideCode(inputCode)
-                    showRideCodeDialog = false
+                    viewModel.setCustomRideCode(inputRoom)
+                    showRoomDialog = false
                 }) {
-                    Text("Save")
+                    Text("Join Room")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showRideCodeDialog = false }) {
+                TextButton(onClick = { showRoomDialog = false }) {
                     Text("Cancel")
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun RiderBadgeChip(
+    name: String,
+    isHost: Boolean,
+    isMuted: Boolean,
+    isSpeaking: Boolean
+) {
+    val borderColor = when {
+        isSpeaking -> Color(0xFF00E676)
+        isMuted -> Color(0xFFFF5252)
+        else -> Color(0xFF334155)
+    }
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFF1E293B),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, borderColor)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(if (isMuted) Color(0xFFFF5252) else if (isSpeaking) Color(0xFF00E676) else Color(0xFF38BDF8))
+            )
+            Spacer(Modifier.width(8.dp))
+            Column {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = if (isMuted) "Muted" else if (isSpeaking) "Speaking..." else if (isHost) "Host" else "Connected",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isMuted) Color(0xFFFF5252) else if (isSpeaking) Color(0xFF00E676) else Color(0xFF94A3B8)
+                )
+            }
+        }
     }
 }
 
