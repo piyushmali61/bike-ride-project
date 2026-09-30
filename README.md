@@ -19,7 +19,7 @@
 **Get the production release Android application directly on your phone:**
 
 <a href="https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk">
-  <img src="https://img.shields.io/badge/DOWNLOAD%20ASTRARIDE%20INTERCOM-RELEASE%20APK%20(46.9%20MB)-0284c7?style=for-the-badge&logo=android&logoColor=white" height="48" />
+  <img src="https://img.shields.io/badge/DOWNLOAD%20ASTRARIDE%20INTERCOM-RELEASE%20APK%20(47.1%20MB)-0284c7?style=for-the-badge&logo=android&logoColor=white" height="48" />
 </a>
 
 <p><em>Engineered and optimized for all modern Android mobile devices worldwide (Android 10 to 15+).</em></p>
@@ -143,7 +143,7 @@ To ensure your phone's battery lasts throughout long touring days without draini
 ## 📦 Direct APK Installation
 
 ### 1. Download Link
-* 🚀 [**AstraRide-Intercom.apk**](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk) *(46.9 MB, Optimized Production Release)*
+* 🚀 [**AstraRide-Intercom.apk**](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk) *(47.1 MB, Optimized Production Release)*
 
 ### 2. Quick Install via USB (ADB)
 ```powershell
