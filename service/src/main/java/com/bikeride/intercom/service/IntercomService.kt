@@ -92,6 +92,13 @@ class IntercomService : Service() {
             }
         }
 
+        // Feed raw mic audio to In-App Phrase Spotter ("Rider Signing Off")
+        serviceScope.launch(Dispatchers.Default) {
+            audioEngine.rawFrames.collect { frame ->
+                voiceCommandDetector.processAudioFrame(frame, audioEngine.isMuted.value)
+            }
+        }
+
         // Handle remote emergency horn alert
         serviceScope.launch {
             meshTransport.emergencyAlert.collect {
@@ -99,23 +106,26 @@ class IntercomService : Service() {
             }
         }
 
-        // Hands-Free Voice Commands: "Say MUTE to Mute"
+        // Hands-Free Controls: Glove Wave Proximity & "Rider Signing Off" (ZERO Gemini popups)
         voiceCommandDetector.onCommandRecognized = { command ->
             when (command) {
                 VoiceCommand.MUTE -> {
-                    Timber.i("Hands-Free Voice MUTE triggered")
-                    audioEngine.setMuted(true, serviceScope)
-                    meshTransport.sendMuteState(true)
-                    updateNotification("🔇 MIC MUTED (Voice) · Ride Active")
+                    val isWave = voiceCommandDetector.lastDetectedCommand.value == "GLOVE WAVE"
+                    val targetMuted = if (isWave) !audioEngine.isMuted.value else true
+                    Timber.i("Hands-Free Mute Triggered (target: $targetMuted, cause: ${voiceCommandDetector.lastDetectedCommand.value})")
+                    audioEngine.setMuted(targetMuted, serviceScope)
+                    meshTransport.sendMuteState(targetMuted)
+                    val label = if (targetMuted) "🔇 MIC MUTED" else "🟢 MIC LIVE"
+                    updateNotification("$label · Room [${meshTransport.currentRoom.value}]")
                 }
                 VoiceCommand.UNMUTE -> {
-                    Timber.i("Hands-Free Voice UNMUTE triggered")
+                    Timber.i("Hands-Free UNMUTE Triggered ('Signing On')")
                     audioEngine.setMuted(false, serviceScope)
                     meshTransport.sendMuteState(false)
-                    updateNotification("🟢 MIC LIVE (Voice) · Ride Active")
+                    updateNotification("🟢 MIC LIVE (Signing On) · Room [${meshTransport.currentRoom.value}]")
                 }
                 VoiceCommand.HORN -> {
-                    Timber.i("Hands-Free Voice HORN triggered")
+                    Timber.i("Emergency HORN triggered")
                     audioEngine.playEmergencyHorn(serviceScope)
                     meshTransport.sendEmergencyHornAlert()
                 }

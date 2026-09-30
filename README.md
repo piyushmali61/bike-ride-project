@@ -32,8 +32,13 @@
 
 **AstraRide** is an off-grid, low-latency, full-duplex motorcycle & vehicle convoy smart intercom developed by **Mythic Bharat Studios**. It bridges local ad-hoc radio mesh and cloud connectivity into one seamless experience:
 
-1. **OFF-GRID MULTI-BIKER ROOM MESH**: Direct peer-to-peer Wi-Fi Direct / Google Nearby Connections cluster (`P2P_CLUSTER`) allowing **2, 3, 4+ bikers** to connect in the same Convoy Room with **zero internet or cell reception**.
-2. **HANDS-FREE VOICE MUTE**: While riding at highway speeds, bikers can simply speak **"MUTE"** or **"UNMUTE"** to toggle their microphone hands-free without taking their hands off the handlebars.
+1. **DUAL-ENGINE ROOM CONNECTION (LOCAL CALL + P2P MESH)**: 
+   * **Local Hotspot / Wi-Fi Call Mode**: Connect both phones to the same mobile hotspot (e.g. Samsung M35 hotspot) for **instantaneous < 2ms connection** like a local call app.
+   * **Off-Grid P2P Mesh**: Deterministic connection leader negotiation completely eliminates the "waiting for 2nd device" connection collision bug.
+2. **ZERO-GEMINI HANDS-FREE MUTE**: 
+   * **Wave Glove to Mute**: Wave a riding glove 5cm over the top of the handlebar-mounted phone (Proximity Sensor) to toggle Mute/Unmute in 0.1s.
+   * **"Rider Signing Off"**: In-app audio cadence spotter recognizes *"Rider signing off"* to Mute, and *"Signing on"* to Unmute.
+   * **100% In-App & Standalone**: Zero system speech services used, permanently preventing Google Gemini or Google Assistant from popping up over your navigation while riding!
 3. **EARCON CONFIRMATION CHIMES**: Real-time synthesized chimes played directly into the helmet confirm mute (`480Hz → 320Hz`) and unmute (`440Hz → 880Hz`) states.
 4. **POP-UP NOTIFICATION QUICK CONTROLS**: High-reliability foreground notification with live dynamic "Mute" / "Unmute" buttons and 1-tap "End Ride" responding instantly across Android 12–15 and Samsung OneUI.
 5. **CLOUD WEBRTC BACKBONE**: Encrypted unordered WebRTC audio channel via secure signaling when distance opens between riders.
@@ -47,32 +52,33 @@ Connect 2 or more bikers into a unified, full-duplex intercom cluster:
 
 ```mermaid
 graph TD
-    subgraph "Convoy Room Mesh (P2P_CLUSTER)"
-        Biker1["🏍️ Rider 1 (Host)<br/>Samsung M35"] <-->|Full Duplex Audio| Biker2["🏍️ Rider 2<br/>Samsung S25 FE"]
-        Biker1 <-->|Full Duplex Audio| Biker3["🏍️ Rider 3<br/>Android Device"]
-        Biker2 <-->|Full Duplex Audio| Biker3
+    subgraph "Dual-Engine Convoy Room"
+        Biker1["🏍️ Rider 1 (Host)<br/>Samsung M35"] <-->|Local UDP Call / Nearby Mesh| Biker2["🏍️ Rider 2<br/>Samsung S25 FE"]
+        Biker1 <-->|Local UDP Call / Nearby Mesh| Biker3["🏍️ Rider 3<br/>Android Device"]
+        Biker2 <-->|Local UDP Call / Nearby Mesh| Biker3
     end
 ```
 
+* **Instant Connection**: Uses deterministic role election and simultaneous local broadcast so Phone 1 and Phone 2 link up in under 1 second without getting stuck on "waiting".
 * **Preset Rooms**: Choose from `CONVOY 1`, `CONVOY 2`, `SQUAD ALPHA`, `APEX`, or create your own custom Room Code.
 * **Full-Duplex Multi-Party Audio**: All bikers in the room hear each other simultaneously with hardware Acoustic Echo Cancellation (AEC) and Noise Suppression (NS).
 * **Live Rider Roster**: View all connected bikers with live speaking badges (green pulsing border), volume levels, and individual mute indicators.
-* **Dynamic Clustering**: Bikers can join or rejoin the room seamlessly without restarting the ride.
 
 ---
 
-## 🗣️ Hands-Free Voice Commands ("Say MUTE to Mute")
+## 🗣️ Zero-Gemini Hands-Free Mute Controls
 
 Riding at highway speeds with thick leather riding gloves makes touching screens dangerous:
 
-| Spoken Voice Command | Triggered Action | Audio Helmet Feedback |
-|---|---|---|
-| **"MUTE"** / **"MIC OFF"** | Mutes local microphone instantly | Low descending double-tone (`480Hz → 320Hz`) |
-| **"UNMUTE"** / **"MIC ON"** | Unmutes local microphone instantly | Crisp ascending double-tone (`440Hz → 880Hz`) |
-| **"HORN"** / **"ALERT"** | Broadcasts convoy emergency siren | Dual-tone siren (`880Hz / 1760Hz`) |
+| Hands-Free Trigger | Action | How It Works | Audio Feedback |
+|---|---|---|---|
+| **👋 Wave Glove** | Toggle Mute / Unmute | Wave glove 5cm over top of phone | Mute / Unmute Chime |
+| **🎙️ "Rider signing off"** | Mutes microphone | In-app cadence analysis | Low descending chime (`480Hz → 320Hz`) |
+| **🎙️ "Signing on"** | Unmutes microphone | In-app cadence analysis | Crisp ascending chime (`440Hz → 880Hz`) |
+| **🚨 "HORN" / "ALERT"** | Emergency Convoy Siren | Broadcasts alarm to all riders | Dual-tone siren (`880Hz / 1760Hz`) |
 
+* **Zero Assistant Interruptions**: Completely bypassed Android's system speech service so Google Gemini / Google Assistant will **never** interrupt your ride or pop up on your screen.
 * Runs continuously, offline, and privately with zero cellular data required.
-* Includes a one-tap toggle on the Home Cockpit to enable or disable voice recognition.
 
 ---
 

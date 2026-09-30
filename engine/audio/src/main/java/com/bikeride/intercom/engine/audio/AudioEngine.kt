@@ -19,6 +19,7 @@ class AudioEngine @Inject constructor() {
     val peerAmplitude: StateFlow<Float> = playback.peerAmplitude
     val isMuted: StateFlow<Boolean> = capture.isMuted
     val outgoingFrames: SharedFlow<ByteArray> = capture.outgoingFrames
+    val rawFrames: SharedFlow<ByteArray> = capture.rawFrames
 
     fun start(scope: CoroutineScope) {
         playback.startPlayback()

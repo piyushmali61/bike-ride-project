@@ -351,7 +351,7 @@ fun HomeScreen(
             }
 
             // ═══════════════════════════════════════════════════════════
-            // Hands-Free Voice Mute Control Card
+            // Hands-Free Mute Control Card (Wave Glove / In-App Phrase)
             // ═══════════════════════════════════════════════════════════
             item {
                 Card(
@@ -378,7 +378,7 @@ fun HomeScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        Icons.Filled.RecordVoiceOver,
+                                        Icons.Filled.PanTool,
                                         contentDescription = null,
                                         tint = Color(0xFF38BDF8),
                                         modifier = Modifier.size(22.dp)
@@ -387,13 +387,13 @@ fun HomeScreen(
                                 Spacer(Modifier.width(12.dp))
                                 Column {
                                     Text(
-                                        "Voice Mute Control",
+                                        "Hands-Free Mute Control",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     )
                                     Text(
-                                        "Say 'MUTE' or 'UNMUTE' hands-free",
+                                        "Wave glove or say 'Rider signing off'",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Color(0xFF94A3B8)
                                     )
@@ -413,24 +413,40 @@ fun HomeScreen(
                         if (isVoiceControlEnabled) {
                             Spacer(Modifier.height(10.dp))
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 color = Color(0xFF0F172A),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("⚡", fontSize = 14.sp)
-                                    Spacer(Modifier.width(6.dp))
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("👋", fontSize = 14.sp)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            "Wave glove 5cm over top of phone to Mute / Unmute",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("🎙️", fontSize = 14.sp)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            "Or speak: \"Rider signing off\" to Mute · \"Signing on\" to Unmute",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF38BDF8)
+                                        )
+                                    }
+                                    Spacer(Modifier.height(6.dp))
                                     Text(
                                         text = if (lastVoiceCommand != null) {
-                                            "Heard command: '$lastVoiceCommand' · Action executed"
+                                            "⚡ Last detected: $lastVoiceCommand (Action executed)"
                                         } else {
-                                            "Listening continuously while riding. Try saying \"Mute\"!"
+                                            "🛡️ Standalone in-app detection · Zero Gemini popups"
                                         },
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = if (lastVoiceCommand != null) Color(0xFF00E676) else Color(0xFF38BDF8)
+                                        color = if (lastVoiceCommand != null) Color(0xFF00E676) else Color(0xFF64748B)
                                     )
                                 }
                             }

@@ -90,7 +90,7 @@ fun RidingHudOverlay(
                 }
             }
 
-            // Voice Command Banner
+            // Hands-Free Control Banner
             Surface(
                 shape = RoundedCornerShape(10.dp),
                 color = Color(0xFF1E293B),
@@ -100,12 +100,12 @@ fun RidingHudOverlay(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Filled.RecordVoiceOver, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.PanTool, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "Voice Command Active: Just say \"MUTE\" or \"UNMUTE\"",
+                        text = "Wave glove over phone or say \"Rider signing off\" to Mute",
                         color = Color.White,
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }

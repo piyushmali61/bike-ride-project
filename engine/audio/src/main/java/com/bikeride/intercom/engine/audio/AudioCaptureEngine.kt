@@ -40,6 +40,9 @@ class AudioCaptureEngine {
     private val _isMuted = MutableStateFlow(false)
     val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
 
+    private val _rawFrames = MutableSharedFlow<ByteArray>(extraBufferCapacity = 8)
+    val rawFrames: SharedFlow<ByteArray> = _rawFrames.asSharedFlow()
+
     private val _outgoingFrames = MutableSharedFlow<ByteArray>(extraBufferCapacity = 8)
     val outgoingFrames: SharedFlow<ByteArray> = _outgoingFrames.asSharedFlow()
 
@@ -107,6 +110,8 @@ class AudioCaptureEngine {
                 while (isActive) {
                     val read = audioRecord?.read(frameBytes, 0, frameBytes.size) ?: -1
                     if (read > 0) {
+                        _rawFrames.tryEmit(frameBytes.copyOf())
+
                         if (_isMuted.value) {
                             _micAmplitude.value = 0f
                             continue
