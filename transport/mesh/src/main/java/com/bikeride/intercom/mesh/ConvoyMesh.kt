@@ -131,14 +131,96 @@ class ConvoyMesh @Inject constructor(
         }
     }
 
-    fun deleteConvoyData(code: String = _room.value) = scope.launch {
-        val normalized = RoomCipher.normalize(code)
-        val roomCipher = RoomCipher(normalized)
-        store.deleteRoom(roomCipher.tag)
-        if (normalized.equals(_room.value, ignoreCase = true)) {
-            _messages.value = emptyList()
-            _unread.value = 0
-            _peers.value = emptyMap()
+    suspend fun deleteConvoyData(code: String = _room.value): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val normalized = RoomCipher.normalize(code)
+            val roomCipher = RoomCipher(normalized)
+            val deleted = store.deleteRoom(roomCipher.tag)
+            router.clearRoom(roomCipher.tag)
+            if (normalized.equals(_room.value, ignoreCase = true)) {
+                _messages.value = emptyList()
+                _unread.value = 0
+                _peers.value = emptyMap()
+            }
+            deleted
+        } catch (e: Exception) {
+            Timber.w(e, "Mesh: could not delete convoy data")
+            false
+        }
+    }
+
+    suspend fun deleteMessage(messageKey: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val msg = _messages.value.find { it.key == messageKey }
+            msg?.imagePath?.let { path ->
+                try { File(path).delete() } catch (_: Exception) {}
+            }
+            router.forget(messageKey)
+            val deleted = cipher?.let { store.deleteMessage(it.tag, messageKey) } ?: false
+            _messages.value = _messages.value.filterNot { it.key == messageKey }
+            deleted
+        } catch (e: Exception) {
+            Timber.w(e, "Mesh: could not delete message")
+            false
+        }
+    }
+
+    suspend fun deleteBikeProfile(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            _profile.value.bikeImagePath?.let { path ->
+                try { File(path).delete() } catch (_: Exception) {}
+            }
+            val appPrefs = context.getSharedPreferences("astra_ride_prefs", Context.MODE_PRIVATE)
+            appPrefs.edit()
+                .remove("BIKE_NAME")
+                .remove("BIKE_MODEL")
+                .commit()
+            prefs.edit()
+                .remove(KEY_BIKE_NAME)
+                .remove(KEY_BIKE_MODEL)
+                .remove(KEY_BIKE_NICKNAME)
+                .remove(KEY_BIKE_PLATE)
+                .remove(KEY_BIKE_IMAGE)
+                .commit()
+            _profile.value = _profile.value.copy(
+                bikeName = "",
+                bikeModel = "",
+                bikeNickname = "",
+                bikePlate = "",
+                bikeImagePath = null
+            )
+            announceProfile(toInternet = true)
+            true
+        } catch (e: Exception) {
+            Timber.w(e, "Mesh: could not delete bike profile")
+            false
+        }
+    }
+
+    suspend fun deleteRiderProfile(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val appPrefs = context.getSharedPreferences("astra_ride_prefs", Context.MODE_PRIVATE)
+            appPrefs.edit()
+                .remove("RIDER_NAME")
+                .remove("BIKE_MODEL")
+                .commit()
+            prefs.edit()
+                .remove(KEY_NAME)
+                .remove(KEY_STATUS)
+                .remove(KEY_AVATAR)
+                .remove(KEY_COLOR)
+                .commit()
+            _profile.value = _profile.value.copy(
+                name = "Rider",
+                status = "Ready to ride",
+                avatar = "🏍️",
+                colorIndex = 0
+            )
+            announceProfile(toInternet = true)
+            true
+        } catch (e: Exception) {
+            Timber.w(e, "Mesh: could not delete rider profile")
+            false
         }
     }
 
@@ -152,7 +234,11 @@ class ConvoyMesh @Inject constructor(
     fun updateProfile(profile: RiderProfile) = scope.launch {
         val clean = profile.copy(
             name = profile.name.trim().take(20).ifBlank { "Rider" },
-            status = profile.status.trim().take(40)
+            status = profile.status.trim().take(40),
+            bikeName = profile.bikeName.trim().take(30),
+            bikeModel = profile.bikeModel.trim().take(30),
+            bikeNickname = profile.bikeNickname.trim().take(30),
+            bikePlate = profile.bikePlate.trim().take(20)
         )
         _profile.value = clean
         prefs.edit()
@@ -160,6 +246,11 @@ class ConvoyMesh @Inject constructor(
             .putString(KEY_STATUS, clean.status)
             .putString(KEY_AVATAR, clean.avatar)
             .putInt(KEY_COLOR, clean.colorIndex)
+            .putString(KEY_BIKE_NAME, clean.bikeName)
+            .putString(KEY_BIKE_MODEL, clean.bikeModel)
+            .putString(KEY_BIKE_NICKNAME, clean.bikeNickname)
+            .putString(KEY_BIKE_PLATE, clean.bikePlate)
+            .putString(KEY_BIKE_IMAGE, clean.bikeImagePath)
             .apply()
         announceProfile(toInternet = true)
     }
@@ -170,8 +261,58 @@ class ConvoyMesh @Inject constructor(
         sendMessage(MeshType.CHAT, fitBody(body), null, null)
     }
 
-    fun sendLocation(latitude: Double, longitude: Double) = scope.launch {
-        sendMessage(MeshType.LOCATION, "%.6f,%.6f".format(java.util.Locale.US, latitude, longitude), latitude, longitude)
+    fun sendLocation(latitude: Double, longitude: Double, placeName: String? = null) = scope.launch {
+        val body = if (placeName != null) {
+            "%.6f,%.6f|$placeName".format(java.util.Locale.US, latitude, longitude)
+        } else {
+            "%.6f,%.6f".format(java.util.Locale.US, latitude, longitude)
+        }
+        val name = _profile.value.name
+        val packet = originate(MeshType.LOCATION, MessageBody.encode(name, body)) ?: return@launch
+        val online = ble.linkCount.value > 0 || nostr.connectedRelays.value > 0
+        addMessage(
+            ChatMessage(
+                key = packet.key,
+                messageId = packet.messageId,
+                senderId = myId,
+                senderName = name,
+                type = MeshType.LOCATION,
+                text = body,
+                latitude = latitude,
+                longitude = longitude,
+                locationName = placeName,
+                timestamp = packet.timestamp,
+                isMine = true,
+                state = if (online) DeliveryState.SENT else DeliveryState.QUEUED,
+                via = Via.YOU,
+                rawPacket = Base64.getEncoder().encodeToString(packet.encode())
+            )
+        )
+    }
+
+    fun sendDestinationReached(destinationName: String, lat: Double, lon: Double) = scope.launch {
+        val name = _profile.value.name
+        val body = "$destinationName|%.6f,%.6f".format(java.util.Locale.US, lat, lon)
+        val packet = originate(MeshType.DESTINATION, MessageBody.encode(name, body)) ?: return@launch
+        val online = ble.linkCount.value > 0 || nostr.connectedRelays.value > 0
+        addMessage(
+            ChatMessage(
+                key = packet.key,
+                messageId = packet.messageId,
+                senderId = myId,
+                senderName = name,
+                type = MeshType.DESTINATION,
+                text = "Reached $destinationName",
+                latitude = lat,
+                longitude = lon,
+                destinationName = destinationName,
+                timestamp = packet.timestamp,
+                isMine = true,
+                state = if (online) DeliveryState.SENT else DeliveryState.QUEUED,
+                via = Via.YOU,
+                rawPacket = Base64.getEncoder().encodeToString(packet.encode())
+            )
+        )
     }
 
     fun sendSos(latitude: Double?, longitude: Double?) = scope.launch {
@@ -185,7 +326,13 @@ class ConvoyMesh @Inject constructor(
      * Sends a photo that is already compressed to at most [ImageChunk.MAX_IMAGE_BYTES] (JPEG).
      * Returns false when it is too large.
      */
-    fun sendImage(jpeg: ByteArray): Boolean {
+    fun sendImage(
+        jpeg: ByteArray,
+        isPictureStop: Boolean = false,
+        locationName: String? = null,
+        lat: Double? = null,
+        lon: Double? = null
+    ): Boolean {
         if (jpeg.isEmpty() || jpeg.size > ImageChunk.MAX_IMAGE_BYTES) return false
         scope.launch {
             val name = _profile.value.name
@@ -196,12 +343,14 @@ class ConvoyMesh @Inject constructor(
             val key = imageKey(myId, imageId)
             val file = File(imageDir, "$key.jpg").apply { writeBytes(jpeg) }
             val online = ble.linkCount.value > 0 || nostr.connectedRelays.value > 0
+            val textLabel = if (isPictureStop) "Picture Stop" else "Photo"
             addMessage(
                 ChatMessage(
                     key = key, messageId = imageId, senderId = myId, senderName = name,
-                    type = MeshType.IMAGE, text = "Photo", timestamp = System.currentTimeMillis(),
+                    type = MeshType.IMAGE, text = textLabel, timestamp = System.currentTimeMillis(),
                     isMine = true, state = if (online) DeliveryState.SENT else DeliveryState.QUEUED,
-                    via = Via.YOU, imagePath = file.absolutePath, imageReceived = total, imageTotal = total
+                    via = Via.YOU, imagePath = file.absolutePath, imageReceived = total, imageTotal = total,
+                    isPictureStop = isPictureStop, locationName = locationName, latitude = lat, longitude = lon
                 )
             )
             for (i in 0 until total) {
@@ -212,6 +361,20 @@ class ConvoyMesh @Inject constructor(
         }
         return true
     }
+
+    fun sendPhoto(
+        jpeg: ByteArray,
+        locationName: String? = null,
+        lat: Double? = null,
+        lon: Double? = null,
+        isPictureStop: Boolean = false
+    ): Boolean = sendImage(
+        jpeg = jpeg,
+        isPictureStop = isPictureStop,
+        locationName = locationName,
+        lat = lat,
+        lon = lon
+    )
 
     private fun imageKey(sender: Long, imageId: Long) =
         "img:${java.lang.Long.toHexString(sender)}:${java.lang.Long.toHexString(imageId)}"
@@ -323,19 +486,34 @@ class ConvoyMesh @Inject constructor(
                 }
             }
             MeshType.IMAGE -> receiveImageChunk(packet, plain, via, hops)
-            MeshType.CHAT, MeshType.SOS, MeshType.LOCATION -> {
+            MeshType.CHAT, MeshType.SOS, MeshType.LOCATION, MeshType.DESTINATION -> {
                 if (_messages.value.any { it.key == packet.key }) return
                 val (name, body) = MessageBody.decode(plain)
-                val latLon = if (packet.type == MeshType.CHAT) null else MessageBody.parseLatLon(body)
+                val latLon = when (packet.type) {
+                    MeshType.CHAT -> null
+                    MeshType.DESTINATION -> {
+                        val extra = MessageBody.parseExtra(body)
+                        extra?.let { MessageBody.parseLatLon(it) } ?: MessageBody.parseLatLon(body)
+                    }
+                    else -> MessageBody.parseLatLon(body)
+                }
+                val destName = if (packet.type == MeshType.DESTINATION) body.split("|")[0].trim() else null
+                val locName = if (packet.type == MeshType.LOCATION) MessageBody.parseExtra(body) else null
+                val displayText = when (packet.type) {
+                    MeshType.DESTINATION -> if (!destName.isNullOrBlank()) "Reached $destName" else "Reached destination"
+                    else -> body
+                }
                 val msg = ChatMessage(
                     key = packet.key,
                     messageId = packet.messageId,
                     senderId = packet.senderId,
                     senderName = name,
                     type = packet.type,
-                    text = body,
+                    text = displayText,
                     latitude = latLon?.first,
                     longitude = latLon?.second,
+                    locationName = locName,
+                    destinationName = destName,
                     timestamp = packet.timestamp,
                     isMine = false,
                     via = via,
@@ -437,14 +615,22 @@ class ConvoyMesh @Inject constructor(
 
     // ── Persistence helpers ─────────────────────────────────────────
 
-    private fun loadProfile() = RiderProfile(
-        name = prefs.getString(KEY_NAME, null)
-            ?: context.getSharedPreferences("astra_ride_prefs", Context.MODE_PRIVATE).getString("RIDER_NAME", "Rider")
-            ?: "Rider",
-        status = prefs.getString(KEY_STATUS, "Ready to ride") ?: "Ready to ride",
-        avatar = prefs.getString(KEY_AVATAR, "🏍️") ?: "🏍️",
-        colorIndex = prefs.getInt(KEY_COLOR, 0)
-    )
+    private fun loadProfile(): RiderProfile {
+        val appPrefs = context.getSharedPreferences("astra_ride_prefs", Context.MODE_PRIVATE)
+        return RiderProfile(
+            name = prefs.getString(KEY_NAME, null)
+                ?: appPrefs.getString("RIDER_NAME", "Rider")
+                ?: "Rider",
+            status = prefs.getString(KEY_STATUS, "Ready to ride") ?: "Ready to ride",
+            avatar = prefs.getString(KEY_AVATAR, "🏍️") ?: "🏍️",
+            colorIndex = prefs.getInt(KEY_COLOR, 0),
+            bikeName = prefs.getString(KEY_BIKE_NAME, null) ?: appPrefs.getString("BIKE_NAME", "") ?: "",
+            bikeModel = prefs.getString(KEY_BIKE_MODEL, null) ?: appPrefs.getString("BIKE_MODEL", "Yamaha R15 V4") ?: "Yamaha R15 V4",
+            bikeNickname = prefs.getString(KEY_BIKE_NICKNAME, "") ?: "",
+            bikePlate = prefs.getString(KEY_BIKE_PLATE, "") ?: "",
+            bikeImagePath = prefs.getString(KEY_BIKE_IMAGE, null)
+        )
+    }
 
     private fun loadNostrKey(): ByteArray {
         prefs.getString(KEY_NOSTR, null)?.let { hex ->
@@ -484,6 +670,11 @@ class ConvoyMesh @Inject constructor(
         private const val KEY_STATUS = "profile_status"
         private const val KEY_AVATAR = "profile_avatar"
         private const val KEY_COLOR = "profile_color"
+        private const val KEY_BIKE_NAME = "profile_bike_name"
+        private const val KEY_BIKE_MODEL = "profile_bike_model"
+        private const val KEY_BIKE_NICKNAME = "profile_bike_nickname"
+        private const val KEY_BIKE_PLATE = "profile_bike_plate"
+        private const val KEY_BIKE_IMAGE = "profile_bike_image"
         private const val KEY_NOSTR = "nostr_secret"
     }
 }

@@ -33,9 +33,11 @@ class IntercomViewModel @Inject constructor(
     private val meshTransport: NearbyMeshTransport,
     private val audioRouteManager: AudioRouteManager,
     private val voiceCommandDetector: VoiceCommandDetector,
-    private val convoyMesh: ConvoyMesh,
-    private val meshAnnouncer: MeshAnnouncer,
-    private val speechSpotter: SpeechCommandSpotter
+    val convoyMesh: ConvoyMesh,
+    val meshAnnouncer: MeshAnnouncer,
+    private val speechSpotter: SpeechCommandSpotter,
+    val navManager: com.bikeride.intercom.feature.ui.nav.NavigationManager,
+    val geocoder: com.bikeride.intercom.feature.ui.nav.DestinationGeocoder
 ) : ViewModel() {
 
     companion object {
@@ -187,11 +189,40 @@ class IntercomViewModel @Inject constructor(
         }
     }
 
-    /** Deletes all stored chat, photos, and mesh data for the specified convoy. */
-    fun deleteConvoy(roomName: String = _customRideCode.value) {
+    /** Deletes all stored chat, photos, and mesh data for the specified convoy. Returns true on success. */
+    suspend fun deleteConvoy(roomName: String = _customRideCode.value): Boolean {
         val sanitized = roomName.trim().uppercase()
-        convoyMesh.deleteConvoyData(sanitized)
-        meshAnnouncer.say("Convoy data deleted.")
+        val success = convoyMesh.deleteConvoyData(sanitized)
+        if (success) {
+            meshAnnouncer.say("Convoy data deleted.")
+        }
+        return success
+    }
+
+    /** Deletes saved bike model, registration plate, and image permanently. */
+    suspend fun deleteBikeData(): Boolean {
+        val success = convoyMesh.deleteBikeProfile()
+        if (success) {
+            _bikeModel.value = "Yamaha R15 V4"
+            prefs.edit().remove("BIKE_MODEL").remove("BIKE_NAME").commit()
+            meshAnnouncer.say("Bike profile deleted.")
+        }
+        return success
+    }
+
+    /** Resets rider data to defaults. */
+    suspend fun deleteRiderData(): Boolean {
+        val success = convoyMesh.deleteRiderProfile()
+        if (success) {
+            _riderName.value = "Rider"
+            prefs.edit().remove("RIDER_NAME").commit()
+            meshAnnouncer.say("Rider data reset.")
+        }
+        return success
+    }
+
+    fun sendPictureStop(jpeg: ByteArray, locationName: String?, lat: Double?, lon: Double?) {
+        convoyMesh.sendPhoto(jpeg, locationName = locationName, lat = lat, lon = lon, isPictureStop = true)
     }
 
     fun toggleVoiceControl(enabled: Boolean) {
@@ -264,6 +295,10 @@ class IntercomViewModel @Inject constructor(
         // Also carry the SOS over the offline mesh / internet, with location when available
         val loc = LocationHelper.lastKnown(context)
         convoyMesh.sendSos(loc?.first, loc?.second)
+    }
+
+    fun sendSos() {
+        triggerEmergencyHorn()
     }
 
     private fun triggerLocalHornAlert(fromRemote: Boolean) {

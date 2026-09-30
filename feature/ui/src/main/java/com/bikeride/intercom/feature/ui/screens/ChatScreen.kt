@@ -48,6 +48,7 @@ import com.bikeride.intercom.mesh.ChatMessage
 import com.bikeride.intercom.mesh.ConvoyMesh
 import com.bikeride.intercom.mesh.DeliveryState
 import com.bikeride.intercom.mesh.MeshType
+import kotlinx.coroutines.launch
 import com.bikeride.intercom.mesh.RiderProfile
 import com.bikeride.intercom.mesh.Via
 import java.text.SimpleDateFormat
@@ -83,10 +84,12 @@ fun ChatScreen(
     val relays by viewModel.internetRelays.collectAsState()
     val readAloud by viewModel.announceEnabled.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var input by remember { mutableStateOf("") }
     var confirmSos by remember { mutableStateOf(false) }
     var confirmDeleteConvoy by remember { mutableStateOf(false) }
+    var messageToDelete by remember { mutableStateOf<ChatMessage?>(null) }
     var viewingImage by remember { mutableStateOf<String?>(null) }
     var sendingPhoto by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
@@ -237,7 +240,8 @@ fun ChatScreen(
                                 } catch (e: Exception) {
                                     Toast.makeText(context, "No maps app installed", Toast.LENGTH_SHORT).show()
                                 }
-                            }
+                            },
+                            onDeleteMessage = { messageToDelete = it }
                         )
                     }
                 }
@@ -272,11 +276,7 @@ fun ChatScreen(
             onDismissRequest = { confirmDeleteConvoy = false },
             containerColor = ChatCard,
             title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.DeleteForever, contentDescription = null, tint = Color(0xFFFF2A42))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Delete Convoy Data?", color = Color.White, fontWeight = FontWeight.Bold)
-                }
+                Text("Delete this item?", color = Color.White, fontWeight = FontWeight.Bold)
             },
             text = {
                 Text(
@@ -287,14 +287,50 @@ fun ChatScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.deleteConvoyData()
                         confirmDeleteConvoy = false
+                        scope.launch {
+                            val ok = viewModel.deleteConvoyData()
+                            if (ok) Toast.makeText(context, "Item deleted successfully.", Toast.LENGTH_SHORT).show()
+                            else Toast.makeText(context, "Failed to delete item.", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     modifier = Modifier.height(48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SosRed)
-                ) { Text("DELETE DATA", color = Color.White, fontWeight = FontWeight.Bold) }
+                ) { Text("Delete", color = Color.White, fontWeight = FontWeight.Bold) }
             },
-            dismissButton = { TextButton(onClick = { confirmDeleteConvoy = false }) { Text("CANCEL", color = ChatMuted) } }
+            dismissButton = { TextButton(onClick = { confirmDeleteConvoy = false }) { Text("Cancel", color = ChatMuted) } }
+        )
+    }
+
+    messageToDelete?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { messageToDelete = null },
+            containerColor = ChatCard,
+            title = {
+                Text("Delete this item?", color = Color.White, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "Are you sure you want to delete this message permanently?",
+                    color = ChatMuted, fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val key = msg.key
+                        messageToDelete = null
+                        scope.launch {
+                            val ok = viewModel.deleteMessage(key)
+                            if (ok) Toast.makeText(context, "Item deleted successfully.", Toast.LENGTH_SHORT).show()
+                            else Toast.makeText(context, "Failed to delete item.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SosRed)
+                ) { Text("Delete", color = Color.White, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { messageToDelete = null }) { Text("Cancel", color = ChatMuted) } }
         )
     }
 
@@ -420,7 +456,8 @@ private fun MessageBubble(
     senderProfile: RiderProfile?,
     myProfile: RiderProfile,
     onOpenImage: (String) -> Unit,
-    onOpenMap: (Double, Double) -> Unit
+    onOpenMap: (Double, Double) -> Unit,
+    onDeleteMessage: (ChatMessage) -> Unit = {}
 ) {
     val time = remember(msg.timestamp) { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(msg.timestamp)) }
     val isSos = msg.type == MeshType.SOS
@@ -497,29 +534,46 @@ private fun MessageBubble(
                     Text("Location unavailable", color = ChatMuted, fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(3.dp))
-                Text(
-                    buildString {
-                        append(time)
-                        if (msg.isMine) {
-                            append(" · ")
-                            append(
-                                when {
-                                    msg.seenBy.isNotEmpty() -> "✓✓ Seen by ${msg.seenBy.size}"
-                                    msg.state == DeliveryState.QUEUED -> "🕓 Waiting for riders"
-                                    else -> "✓ Sent"
-                                }
-                            )
-                        } else {
-                            append(
-                                when (msg.via) {
-                                    Via.INTERNET -> " · via internet"
-                                    else -> if (msg.hops <= 1) " · direct" else " · ${msg.hops} hops"
-                                }
-                            )
-                        }
-                    },
-                    color = ChatMuted, fontSize = 11.sp
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        buildString {
+                            append(time)
+                            if (msg.isMine) {
+                                append(" · ")
+                                append(
+                                    when {
+                                        msg.seenBy.isNotEmpty() -> "✓✓ Seen by ${msg.seenBy.size}"
+                                        msg.state == DeliveryState.QUEUED -> "🕓 Waiting for riders"
+                                        else -> "✓ Sent"
+                                    }
+                                )
+                            } else {
+                                append(
+                                    when (msg.via) {
+                                        Via.INTERNET -> " · via internet"
+                                        else -> if (msg.hops <= 1) " · direct" else " · ${msg.hops} hops"
+                                    }
+                                )
+                            }
+                        },
+                        color = ChatMuted, fontSize = 11.sp
+                    )
+                    IconButton(
+                        onClick = { onDeleteMessage(msg) },
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.DeleteOutline,
+                            contentDescription = "Delete Message",
+                            tint = Color(0xFFEF4444).copy(alpha = 0.75f),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
             }
         }
     }

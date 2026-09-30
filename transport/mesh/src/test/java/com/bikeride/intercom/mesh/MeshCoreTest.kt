@@ -112,17 +112,51 @@ class MeshCoreTest {
     // ── Profile & body encoding ─────────────────────────────────────
 
     @Test
-    fun `profile round-trips`() {
-        val p = RiderProfile("Aayush", "Leading the pack", "🦅", 5)
-        assertEquals(p, RiderProfile.decode(p.encode()))
+    fun `profile round-trips with bike information`() {
+        val p = RiderProfile(
+            name = "Piyush",
+            status = "Leading the pack",
+            avatar = "🏍️",
+            colorIndex = 5,
+            bikeName = "Storm",
+            bikeModel = "KTM Duke 390",
+            bikeNickname = "Orange Beast",
+            bikePlate = "MH-19-AB-1234"
+        )
+        val decoded = RiderProfile.decode(p.encode())
+        assertEquals(p, decoded)
     }
 
     @Test
-    fun `message body carries sender name`() {
-        val (name, body) = MessageBody.decode(MessageBody.encode("Piyush", "12.97,77.59"))
+    fun `profile decodes legacy 4-field wire format safely`() {
+        val legacy = "Piyush\u001fLeading\u001f🦅\u001f3".toByteArray(Charsets.UTF_8)
+        val decoded = RiderProfile.decode(legacy)
+        assertNotNull(decoded)
+        assertEquals("Piyush", decoded!!.name)
+        assertEquals("Leading", decoded.status)
+        assertEquals("🦅", decoded.avatar)
+        assertEquals(3, decoded.colorIndex)
+        assertEquals("", decoded.bikeName)
+        assertEquals("", decoded.bikeModel)
+    }
+
+    @Test
+    fun `destination packet opcode round-trips`() {
+        val p = packet().copy(type = MeshType.DESTINATION, payload = "SSBT College".toByteArray())
+        val decoded = MeshPacket.decode(p.encode())
+        assertEquals(MeshType.DESTINATION, decoded?.type)
+        assertEquals("SSBT College", decoded?.payload?.toString(Charsets.UTF_8))
+    }
+
+    @Test
+    fun `message body carries sender name and location extra`() {
+        val raw = "12.97,77.59|Near SSBT College"
+        val (name, body) = MessageBody.decode(MessageBody.encode("Piyush", raw))
         assertEquals("Piyush", name)
         assertEquals(12.97 to 77.59, MessageBody.parseLatLon(body))
+        assertEquals("Near SSBT College", MessageBody.parseExtra(body))
     }
+
 
     // ── Photos ──────────────────────────────────────────────────────
 

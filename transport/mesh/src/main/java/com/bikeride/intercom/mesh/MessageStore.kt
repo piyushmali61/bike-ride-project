@@ -39,10 +39,21 @@ class MessageStore(private val dir: File) {
     }
 
     fun deleteRoom(roomTag: Int): Boolean = try {
-        val f = file(roomTag)
-        if (f.exists()) f.delete() else true
+        val target = file(roomTag)
+        val tmp = File(dir, target.name + ".tmp")
+        if (tmp.exists()) tmp.delete()
+        if (target.exists()) target.delete() else true
     } catch (e: Exception) {
         Timber.w(e, "Mesh: could not delete room store")
+        false
+    }
+
+    fun deleteMessage(roomTag: Int, key: String): Boolean = try {
+        val current = load(roomTag).filterNot { it.key == key }
+        save(roomTag, current)
+        true
+    } catch (e: Exception) {
+        Timber.w(e, "Mesh: could not delete message from store")
         false
     }
 
@@ -65,6 +76,9 @@ class MessageStore(private val dir: File) {
         m.imagePath?.let { put("image", it) }
         put("imgRx", m.imageReceived)
         put("imgTotal", m.imageTotal)
+        m.locationName?.let { put("locName", it) }
+        put("isPicStop", m.isPictureStop)
+        m.destinationName?.let { put("destName", it) }
     }
 
     private fun fromJson(o: JSONObject): ChatMessage? = try {
@@ -87,7 +101,10 @@ class MessageStore(private val dir: File) {
             rawPacket = if (o.has("raw")) o.getString("raw") else null,
             imagePath = if (o.has("image")) o.getString("image") else null,
             imageReceived = o.optInt("imgRx"),
-            imageTotal = o.optInt("imgTotal")
+            imageTotal = o.optInt("imgTotal"),
+            locationName = if (o.has("locName")) o.getString("locName") else null,
+            isPictureStop = o.optBoolean("isPicStop", false),
+            destinationName = if (o.has("destName")) o.getString("destName") else null
         )
     } catch (e: Exception) {
         null

@@ -67,10 +67,21 @@ class ChatViewModel @Inject constructor(
 
     fun retryBluetooth() = mesh.start()
 
-    /** Deletes all stored chat and photos for the current room. */
-    fun deleteConvoyData() {
-        mesh.deleteConvoyData()
-        announcer.say("Convoy data deleted.")
+    /** Deletes all stored chat and photos for the current room. Returns true on success. */
+    suspend fun deleteConvoyData(): Boolean {
+        val ok = mesh.deleteConvoyData()
+        if (ok) announcer.say("Convoy data deleted.")
+        return ok
+    }
+
+    /** Deletes a single message by unique key from storage and active state. */
+    suspend fun deleteMessage(key: String): Boolean {
+        return mesh.deleteMessage(key)
+    }
+
+    fun sendPictureStop(jpeg: ByteArray, locationName: String?, lat: Double?, lon: Double?) {
+        mesh.sendPhoto(jpeg, locationName = locationName, lat = lat, lon = lon, isPictureStop = true)
+        announcer.say("Picture stop shared.")
     }
 
     /** Compresses the picked photo to a few KB and sends it. Calls [onResult] with false on failure. */

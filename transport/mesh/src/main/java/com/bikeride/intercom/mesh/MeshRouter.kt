@@ -64,6 +64,23 @@ class MeshRouter(
         return buffer.values.toList()
     }
 
+    /** Removes a specific message key from replay buffer and seen set so it never reappears. */
+    @Synchronized
+    fun forget(key: String) {
+        buffer.remove(key)
+        seen.remove(key)
+    }
+
+    /** Purges all packets for a deleted room from buffer and seen set. */
+    @Synchronized
+    fun clearRoom(roomTag: Int) {
+        val keys = buffer.values.filter { it.roomTag == roomTag }.map { it.key }
+        keys.forEach { key ->
+            buffer.remove(key)
+            seen.remove(key)
+        }
+    }
+
     companion object {
         const val FUTURE_SKEW_MS = 5 * 60 * 1000L
     }

@@ -54,7 +54,8 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
 
-    // Logging
+    // Networking & Logging
+    implementation(libs.okhttp)
     implementation(libs.timber)
 
     // Testing

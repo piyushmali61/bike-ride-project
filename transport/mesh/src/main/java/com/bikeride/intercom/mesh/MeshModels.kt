@@ -5,10 +5,17 @@ data class RiderProfile(
     val name: String = "Rider",
     val status: String = "Ready to ride",
     val avatar: String = "🏍️",
-    val colorIndex: Int = 0
+    val colorIndex: Int = 0,
+    val bikeName: String = "",
+    val bikeModel: String = "",
+    val bikeNickname: String = "",
+    val bikePlate: String = "",
+    val bikeImagePath: String? = null
 ) {
-    fun encode(): ByteArray = listOf(name, status, avatar, colorIndex.toString())
-        .joinToString(SEP).toByteArray(Charsets.UTF_8)
+    fun encode(): ByteArray = listOf(
+        name, status, avatar, colorIndex.toString(),
+        bikeName, bikeModel, bikeNickname, bikePlate
+    ).joinToString(SEP).toByteArray(Charsets.UTF_8)
 
     companion object {
         const val SEP = "\u001F"
@@ -22,7 +29,11 @@ data class RiderProfile(
                 name = parts[0].take(20).ifBlank { "Rider" },
                 status = parts[1].take(40),
                 avatar = parts[2].take(8).ifBlank { "🏍️" },
-                colorIndex = (parts[3].toIntOrNull() ?: 0).mod(COLOR_COUNT)
+                colorIndex = (parts[3].toIntOrNull() ?: 0).mod(COLOR_COUNT),
+                bikeName = parts.getOrNull(4)?.take(30) ?: "",
+                bikeModel = parts.getOrNull(5)?.take(30) ?: "",
+                bikeNickname = parts.getOrNull(6)?.take(30) ?: "",
+                bikePlate = parts.getOrNull(7)?.take(20) ?: ""
             )
         }
     }
@@ -53,7 +64,10 @@ data class ChatMessage(
     val imagePath: String? = null,
     /** Photo pieces received so far / expected, for the "receiving photo" progress. */
     val imageReceived: Int = 0,
-    val imageTotal: Int = 0
+    val imageTotal: Int = 0,
+    val locationName: String? = null,
+    val isPictureStop: Boolean = false,
+    val destinationName: String? = null
 )
 
 data class MeshPeer(
@@ -106,7 +120,7 @@ internal data class ImageChunk(val imageId: Long, val index: Int, val total: Int
     }
 }
 
-/** Body of CHAT / SOS / LOCATION packets: sender name travels with the message. */
+/** Body of CHAT / SOS / LOCATION / DESTINATION packets: sender name travels with the message. */
 internal object MessageBody {
     fun encode(senderName: String, body: String) = "$senderName${RiderProfile.SEP}$body".toByteArray(Charsets.UTF_8)
 
@@ -117,9 +131,16 @@ internal object MessageBody {
     }
 
     fun parseLatLon(body: String): Pair<Double, Double>? {
-        val parts = body.split(",")
+        val main = body.split("|")[0]
+        val parts = main.split(",")
         val lat = parts.getOrNull(0)?.trim()?.toDoubleOrNull() ?: return null
         val lon = parts.getOrNull(1)?.trim()?.toDoubleOrNull() ?: return null
         return lat to lon
     }
+
+    fun parseExtra(body: String): String? {
+        val parts = body.split("|")
+        return if (parts.size > 1) parts[1].trim().takeIf { it.isNotBlank() } else null
+    }
 }
+
