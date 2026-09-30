@@ -117,12 +117,18 @@ class LocalLanTransport @Inject constructor(
                         val beaconStr = String(data, 0, len)
                         parseBeacon(beaconStr, senderAddress, senderPort)
                     } else if (data[0] == PKT_AUDIO && len > 1) {
+                        val key = senderAddress.hostAddress ?: "$senderAddress"
+                        peerLastSeen[key] = SystemClock.elapsedRealtime()
                         val audioData = data.copyOfRange(1, len)
                         onAudioFrameReceived?.invoke(audioData)
                     } else if (data[0] == PKT_MUTE && len > 1) {
+                        val key = senderAddress.hostAddress ?: "$senderAddress"
+                        peerLastSeen[key] = SystemClock.elapsedRealtime()
                         val muted = (data[1] == 1.toByte())
                         updatePeerMute(senderAddress.hostAddress ?: "", muted)
                     } else if (data[0] == PKT_HORN) {
+                        val key = senderAddress.hostAddress ?: "$senderAddress"
+                        peerLastSeen[key] = SystemClock.elapsedRealtime()
                         onEmergencyHornReceived?.invoke()
                     }
                 } catch (e: Exception) {
@@ -133,7 +139,7 @@ class LocalLanTransport @Inject constructor(
             }
         }
 
-        // Periodic Broadcast Beacon (every 1200ms)
+        // Periodic Broadcast & Unicast Beacon (every 1200ms)
         beaconJob = scope.launch(Dispatchers.IO) {
             val myDevice = "Rider $myRiderId"
 
@@ -142,6 +148,7 @@ class LocalLanTransport @Inject constructor(
                 val beaconMessage = "$BEACON_HEADER|$currentRoom|$myRiderId|$myDevice"
                 val beaconBytes = beaconMessage.toByteArray()
 
+                // 1. Send broadcast beacons
                 for (bcast in broadcastAddresses) {
                     try {
                         val beaconPacket = DatagramPacket(beaconBytes, beaconBytes.size, bcast, UDP_PORT)
@@ -151,12 +158,23 @@ class LocalLanTransport @Inject constructor(
                     }
                 }
 
-                // Prune dead peers (inactive for > 6 seconds)
+                // 2. Direct Unicast keepalive to each known peer (immune to Wi-Fi broadcast power-saving)
+                val peers = _connectedLanPeers.value.values
+                for (peer in peers) {
+                    try {
+                        val unicastPacket = DatagramPacket(beaconBytes, beaconBytes.size, peer.address, peer.port)
+                        socket?.send(unicastPacket)
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }
+
+                // Prune dead peers only after 25 seconds of sustained inactivity
                 val now = SystemClock.elapsedRealtime()
                 val current = _connectedLanPeers.value
                 val active = current.filter { (key, _) ->
                     val last = peerLastSeen[key] ?: 0L
-                    now - last < 6000L
+                    now - last < 25000L
                 }
                 if (active.size != current.size) {
                     _connectedLanPeers.value = active

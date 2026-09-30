@@ -351,7 +351,7 @@ fun HomeScreen(
             }
 
             // ═══════════════════════════════════════════════════════════
-            // Hands-Free Mute Control Card (Wave Glove / In-App Phrase)
+            // Continuous Full-Duplex Call Mode (Never auto-mutes or cuts)
             // ═══════════════════════════════════════════════════════════
             item {
                 Card(
@@ -360,95 +360,61 @@ fun HomeScreen(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF131D31)),
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
-                        if (isVoiceControlEnabled) Color(0xFF38BDF8).copy(alpha = 0.35f) else Color(0xFF334155)
+                        Color(0xFF00E676).copy(alpha = 0.35f)
                     )
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFF38BDF8).copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Filled.PanTool,
-                                        contentDescription = null,
-                                        tint = Color(0xFF38BDF8),
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        "Hands-Free Mute Control",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        "Wave glove or say 'Rider signing off'",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF94A3B8)
-                                    )
-                                }
-                            }
-
-                            Switch(
-                                checked = isVoiceControlEnabled,
-                                onCheckedChange = { viewModel.toggleVoiceControl(it) },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = Color(0xFF38BDF8)
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF00E676).copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.Call,
+                                    contentDescription = null,
+                                    tint = Color(0xFF00E676),
+                                    modifier = Modifier.size(22.dp)
                                 )
-                            )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "Continuous Call · Full Duplex",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "Always live stream · Never cuts off or auto-mutes while talking",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
                         }
 
-                        if (isVoiceControlEnabled) {
-                            Spacer(Modifier.height(10.dp))
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF0F172A),
-                                modifier = Modifier.fillMaxWidth()
+                        Spacer(Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF0F172A),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.padding(10.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("👋", fontSize = 14.sp)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(
-                                            "Wave glove 5cm over top of phone to Mute / Unmute",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color.White,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
-                                    Spacer(Modifier.height(4.dp))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("🎙️", fontSize = 14.sp)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(
-                                            "Or speak: \"Rider signing off\" to Mute · \"Signing on\" to Unmute",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFF38BDF8)
-                                        )
-                                    }
-                                    Spacer(Modifier.height(6.dp))
-                                    Text(
-                                        text = if (lastVoiceCommand != null) {
-                                            "⚡ Last detected: $lastVoiceCommand (Action executed)"
-                                        } else {
-                                            "🛡️ Standalone in-app detection · Zero Gemini popups"
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (lastVoiceCommand != null) Color(0xFF00E676) else Color(0xFF64748B)
-                                    )
-                                }
+                                Text("🛡️", fontSize = 14.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Your voice stays live continuously. Mute is 100% under your manual control via the MUTE button below or in the status bar.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFFE2E8F0)
+                                )
                             }
                         }
                     }
@@ -532,7 +498,7 @@ fun HomeScreen(
                                 modifier = Modifier.weight(1f),
                                 icon = if (isMuted) Icons.Filled.MicOff else Icons.Filled.Mic,
                                 title = if (isMuted) "MUTED" else "MIC LIVE",
-                                subtitle = "Tap or say 'Mute'",
+                                subtitle = "Tap to Toggle Mute",
                                 color = if (isMuted) Color(0xFFFF1744) else Color(0xFF00E676),
                                 onClick = { viewModel.toggleMute() }
                             )

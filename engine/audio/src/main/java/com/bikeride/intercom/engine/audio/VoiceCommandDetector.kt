@@ -44,10 +44,10 @@ class VoiceCommandDetector @Inject constructor(
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
     private val proximitySensor: Sensor? = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
 
-    private val _isVoiceControlEnabled = MutableStateFlow(true)
+    private val _isVoiceControlEnabled = MutableStateFlow(false)
     val isVoiceControlEnabled: StateFlow<Boolean> = _isVoiceControlEnabled.asStateFlow()
 
-    private val _isProximityWaveEnabled = MutableStateFlow(true)
+    private val _isProximityWaveEnabled = MutableStateFlow(false)
     val isProximityWaveEnabled: StateFlow<Boolean> = _isProximityWaveEnabled.asStateFlow()
 
     private val _lastDetectedCommand = MutableStateFlow<String?>(null)
@@ -57,12 +57,6 @@ class VoiceCommandDetector @Inject constructor(
 
     private var lastTriggerTimestamp = 0L
     private var isListening = false
-
-    // Phrase cadence tracking (syllables of speech bursts separated by brief pauses)
-    private var speechBurstsInWindow = 0
-    private var lastBurstTimestamp = 0L
-    private var windowStartTimestamp = 0L
-    private var isCurrentlySpeaking = false
 
     fun setVoiceControlEnabled(enabled: Boolean) {
         _isVoiceControlEnabled.value = enabled
@@ -81,12 +75,12 @@ class VoiceCommandDetector @Inject constructor(
         if (isListening) return
         isListening = true
 
-        // Register proximity sensor for wave-to-mute
-        proximitySensor?.let {
-            sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
-            Timber.i("Proximity Wave-to-Mute sensor registered (No Gemini popups)")
+        if (_isProximityWaveEnabled.value) {
+            proximitySensor?.let {
+                sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+                Timber.i("Proximity sensor registered")
+            }
         }
-        Timber.i("Hands-free Rider Signing Off & Wave-to-Mute active")
     }
 
     fun stopListening() {
@@ -111,7 +105,7 @@ class VoiceCommandDetector @Inject constructor(
         val isNear = distance < maxRange && distance < 5f
 
         val now = SystemClock.elapsedRealtime()
-        if (isNear && (now - lastTriggerTimestamp > 1400L)) {
+        if (isNear && (now - lastTriggerTimestamp > 2000L)) {
             lastTriggerTimestamp = now
             _lastDetectedCommand.value = "GLOVE WAVE"
             Timber.i("Hands-Free Wave Detected: Toggling Mute (Proximity)")
@@ -123,54 +117,9 @@ class VoiceCommandDetector @Inject constructor(
 
     /**
      * In-App Audio Frame Cadence Spotter.
-     * Evaluates raw 16kHz PCM audio frames directly from AudioCaptureEngine.
-     * When the distinct 4-burst speech cadence of "Ri-der Sign-ing Off" is spoken,
-     * toggles Mute with zero Google Gemini intervention.
+     * Speech must NEVER automatically mute the rider while talking.
      */
     fun processAudioFrame(frame: ByteArray, isCurrentlyMuted: Boolean) {
-        if (!_isVoiceControlEnabled.value || !isListening) return
-
-        val samples = ShortArray(frame.size / 2)
-        ByteBuffer.wrap(frame).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(samples)
-
-        var sumSquares = 0.0
-        for (s in samples) {
-            sumSquares += s * s
-        }
-        val rms = sqrt(sumSquares / samples.size)
-        val normalized = (rms / 8000.0).toFloat().coerceIn(0f, 1f)
-
-        val now = SystemClock.elapsedRealtime()
-        val speechThreshold = 0.045f
-
-        if (normalized > speechThreshold) {
-            if (!isCurrentlySpeaking) {
-                isCurrentlySpeaking = true
-                if (now - windowStartTimestamp > 2500L) {
-                    windowStartTimestamp = now
-                    speechBurstsInWindow = 0
-                }
-                speechBurstsInWindow++
-                lastBurstTimestamp = now
-            }
-        } else {
-            if (isCurrentlySpeaking && (now - lastBurstTimestamp > 120L)) {
-                isCurrentlySpeaking = false
-
-                // 3 to 4 syllables detected in a ~1.5s cadence window (e.g. "Rider signing off" or "Signing off")
-                if (speechBurstsInWindow in 3..5 && (now - windowStartTimestamp in 900L..2500L)) {
-                    if (now - lastTriggerTimestamp > 1800L) {
-                        lastTriggerTimestamp = now
-                        speechBurstsInWindow = 0
-
-                        val command = if (isCurrentlyMuted) VoiceCommand.UNMUTE else VoiceCommand.MUTE
-                        val commandName = if (isCurrentlyMuted) "SIGNING ON" else "RIDER SIGNING OFF"
-                        _lastDetectedCommand.value = commandName
-                        Timber.i("In-App Phrase Recognized: $commandName -> $command")
-                        onCommandRecognized?.invoke(command)
-                    }
-                }
-            }
-        }
+        // Disabled: Talking should never automatically mute the rider's audio or drop calls.
     }
 }

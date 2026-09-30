@@ -35,10 +35,10 @@
 1. **DUAL-ENGINE ROOM CONNECTION (LOCAL CALL + P2P MESH)**: 
    * **Local Hotspot / Wi-Fi Call Mode**: Connect phones to the same mobile hotspot or local Wi-Fi network for **instantaneous < 2ms connection** like a local call app.
    * **Off-Grid P2P Mesh**: Deterministic connection leader negotiation completely eliminates the "waiting for 2nd device" connection collision bug.
-2. **ZERO-GEMINI HANDS-FREE MUTE**: 
-   * **Wave Glove to Mute**: Wave a riding glove 5cm over the top of the handlebar-mounted phone (Proximity Sensor) to toggle Mute/Unmute in 0.1s.
-   * **"Rider Signing Off"**: In-app audio cadence spotter recognizes *"Rider signing off"* to Mute, and *"Signing on"* to Unmute.
-   * **100% In-App & Standalone**: Zero system speech services used, permanently preventing Google Gemini or Google Assistant from popping up over your navigation while riding!
+2. **CONTINUOUS FULL-DUPLEX CALL (ZERO AUTO-CUT / ZERO AUTO-MUTE)**: 
+   * **Uninterrupted Audio Stream**: Speech is never clipped, cut off, or automatically muted while talking.
+   * **100% Reliable Manual Mute**: Big tactile on-screen Mute toggle and status bar notification quick button.
+   * **No False Triggering**: No background speech recognition interfering with or muting active conversations.
 3. **EARCON CONFIRMATION CHIMES**: Real-time synthesized chimes played directly into the helmet confirm mute (`480Hz → 320Hz`) and unmute (`440Hz → 880Hz`) states.
 4. **POP-UP NOTIFICATION QUICK CONTROLS**: High-reliability foreground notification with live dynamic "Mute" / "Unmute" buttons and 1-tap "End Ride" responding instantly across Android 12–15.
 5. **CLOUD WEBRTC BACKBONE**: Encrypted unordered WebRTC audio channel via secure signaling when distance opens between riders.

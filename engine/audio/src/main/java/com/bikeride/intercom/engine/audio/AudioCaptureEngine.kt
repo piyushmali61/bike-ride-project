@@ -144,30 +144,8 @@ class AudioCaptureEngine {
                         val normalized = (rms / 8000.0).toFloat().coerceIn(0f, 1f)
                         _micAmplitude.value = normalized
 
-                        // Voice Activity Detection & DTX Radio Power Management
-                        val isVoiceActive = normalized >= VAD_SILENCE_THRESHOLD
-
-                        if (isVoiceActive) {
-                            silenceCounter = 0
-                            dtxKeepaliveCounter = 0
-                            // Transmit active voice immediately
-                            _outgoingFrames.tryEmit(frameBytes.copyOf())
-                        } else {
-                            silenceCounter++
-                            if (silenceCounter <= HANGOVER_FRAMES) {
-                                // Hangover period: transmit smoothly so word endings are natural
-                                _outgoingFrames.tryEmit(frameBytes.copyOf())
-                            } else {
-                                // Sustained silence: conserve battery & RF radio
-                                dtxKeepaliveCounter++
-                                if (dtxKeepaliveCounter >= DTX_KEEPALIVE_INTERVAL) {
-                                    // Send lightweight keepalive comfort frame
-                                    dtxKeepaliveCounter = 0
-                                    _outgoingFrames.tryEmit(frameBytes.copyOf())
-                                }
-                                // Otherwise: skip packet transmission, saving battery and radio airtime
-                            }
-                        }
+                        // Continuous full-duplex intercom stream: words are never cut off or dropped
+                        _outgoingFrames.tryEmit(frameBytes.copyOf())
                     }
                 }
             }

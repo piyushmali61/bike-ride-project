@@ -4,6 +4,7 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.wifi.WifiManager
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -55,6 +56,7 @@ class IntercomService : Service() {
     }
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main + coroutineExceptionHandler)
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
     private val binder = LocalBinder()
 
     inner class LocalBinder : Binder() {
@@ -81,6 +83,23 @@ class IntercomService : Service() {
         } catch (e: Exception) {
             Timber.e(e, "Failed to acquire wake lock")
         }
+
+        try {
+            val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val lockMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+            } else {
+                @Suppress("DEPRECATION")
+                WifiManager.WIFI_MODE_FULL_HIGH_PERF
+            }
+            wifiLock = wm.createWifiLock(lockMode, "AstraRide::IntercomWifiLock").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+            Timber.i("WifiLock acquired for motorcycle ride (mode: $lockMode)")
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to acquire wifi lock")
+        }
     }
 
     private fun wireAudioAndTransport() {
@@ -96,7 +115,7 @@ class IntercomService : Service() {
             }
         }
 
-        // Feed raw mic audio to In-App Phrase Spotter ("Rider Signing Off")
+        // Feed raw mic audio to In-App Phrase Spotter
         serviceScope.launch(Dispatchers.Default) {
             audioEngine.rawFrames.collect { frame ->
                 voiceCommandDetector.processAudioFrame(frame, audioEngine.isMuted.value)
@@ -110,28 +129,17 @@ class IntercomService : Service() {
             }
         }
 
-        // Hands-Free Controls: Glove Wave Proximity & "Rider Signing Off" (ZERO Gemini popups)
+        // Emergency Horn listener (MUTE is strictly manual via UI button so speech NEVER cuts audio)
         voiceCommandDetector.onCommandRecognized = { command ->
             when (command) {
-                VoiceCommand.MUTE -> {
-                    val isWave = voiceCommandDetector.lastDetectedCommand.value == "GLOVE WAVE"
-                    val targetMuted = if (isWave) !audioEngine.isMuted.value else true
-                    Timber.i("Hands-Free Mute Triggered (target: $targetMuted, cause: ${voiceCommandDetector.lastDetectedCommand.value})")
-                    audioEngine.setMuted(targetMuted, serviceScope)
-                    meshTransport.sendMuteState(targetMuted)
-                    val label = if (targetMuted) "🔇 MIC MUTED" else "🟢 MIC LIVE"
-                    updateNotification("$label · Room [${meshTransport.currentRoom.value}]")
-                }
-                VoiceCommand.UNMUTE -> {
-                    Timber.i("Hands-Free UNMUTE Triggered ('Signing On')")
-                    audioEngine.setMuted(false, serviceScope)
-                    meshTransport.sendMuteState(false)
-                    updateNotification("🟢 MIC LIVE (Signing On) · Room [${meshTransport.currentRoom.value}]")
-                }
                 VoiceCommand.HORN -> {
                     Timber.i("Emergency HORN triggered")
                     audioEngine.playEmergencyHorn(serviceScope)
                     meshTransport.sendEmergencyHornAlert()
+                }
+                VoiceCommand.MUTE, VoiceCommand.UNMUTE -> {
+                    // Do NOT auto-mute: rider speech must NEVER be muted automatically while talking
+                    Timber.d("Auto-mute ignored to protect active conversation")
                 }
             }
         }
@@ -214,6 +222,9 @@ class IntercomService : Service() {
         audioEngine.stop()
         meshTransport.disconnect()
         wakeLock?.let {
+            if (it.isHeld) it.release()
+        }
+        wifiLock?.let {
             if (it.isHeld) it.release()
         }
         stopForeground(STOP_FOREGROUND_REMOVE)

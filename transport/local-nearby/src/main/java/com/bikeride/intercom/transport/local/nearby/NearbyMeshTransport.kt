@@ -326,7 +326,7 @@ class NearbyMeshTransport @Inject constructor(
     }
 
     fun sendAudioFrame(frame: ByteArray) {
-        if (_state.value != MeshConnectionState.CONNECTED) return
+        if (_state.value != MeshConnectionState.CONNECTED && localLanTransport.connectedLanPeers.value.isEmpty()) return
 
         // 1. Send over Local Hotspot/Wi-Fi UDP (ultra-fast)
         localLanTransport.sendAudioFrame(frame)
