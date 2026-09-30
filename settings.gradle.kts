@@ -38,6 +38,7 @@ include(":transport:api")
 include(":transport:local-nearby")
 include(":transport:local-wifidirect")
 include(":transport:internet-webrtc")
+include(":transport:mesh")
 
 // Feature modules
 include(":feature:ui")

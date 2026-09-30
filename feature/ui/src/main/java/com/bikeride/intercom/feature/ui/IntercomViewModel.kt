@@ -9,6 +9,8 @@ import com.bikeride.intercom.bluetooth.AudioRouteManager
 import com.bikeride.intercom.bluetooth.AudioRouteType
 import com.bikeride.intercom.engine.audio.AudioEngine
 import com.bikeride.intercom.engine.audio.VoiceCommandDetector
+import com.bikeride.intercom.mesh.ConvoyMesh
+import com.bikeride.intercom.mesh.RiderProfile
 import com.bikeride.intercom.service.IntercomService
 import com.bikeride.intercom.transport.local.nearby.ConnectedRider
 import com.bikeride.intercom.transport.local.nearby.MeshConnectionState
@@ -27,7 +29,8 @@ class IntercomViewModel @Inject constructor(
     private val audioEngine: AudioEngine,
     private val meshTransport: NearbyMeshTransport,
     private val audioRouteManager: AudioRouteManager,
-    private val voiceCommandDetector: VoiceCommandDetector
+    private val voiceCommandDetector: VoiceCommandDetector,
+    private val convoyMesh: ConvoyMesh
 ) : ViewModel() {
 
     val connectionState: StateFlow<MeshConnectionState> = meshTransport.state
@@ -64,14 +67,27 @@ class IntercomViewModel @Inject constructor(
     private val _isEmergencyAlertActive = MutableStateFlow(false)
     val isEmergencyAlertActive: StateFlow<Boolean> = _isEmergencyAlertActive.asStateFlow()
 
-    private val _customRideCode = MutableStateFlow("CONVOY 1")
+    private val _customRideCode = MutableStateFlow(prefs.getString("RIDE_CODE", "CONVOY 1") ?: "CONVOY 1")
     val customRideCode: StateFlow<String> = _customRideCode.asStateFlow()
 
     private val _hasPermissions = MutableStateFlow(false)
     val hasPermissions: StateFlow<Boolean> = _hasPermissions.asStateFlow()
 
+    // Offline mesh chat (Bluetooth multi-hop + internet relays)
+    val riderProfile: StateFlow<RiderProfile> = convoyMesh.profile
+    val meshUnread: StateFlow<Int> = convoyMesh.unread
+    val meshBluetoothLinks: StateFlow<Int> = convoyMesh.bluetoothLinks
+    val meshInternetRelays: StateFlow<Int> = convoyMesh.internetRelays
+    val meshPeers = convoyMesh.peers
+
     init {
         meshTransport.setRiderName(_riderName.value)
+        convoyMesh.setRoom(_customRideCode.value)
+
+        // SOS sent over the mesh (even many hops away, or over the internet) sounds the horn here too
+        viewModelScope.launch {
+            convoyMesh.incomingSos.collect { triggerLocalHornAlert(fromRemote = true) }
+        }
 
         // Collect remote emergency horn triggers
         viewModelScope.launch {
@@ -87,7 +103,16 @@ class IntercomViewModel @Inject constructor(
             _riderName.value = sanitized
             prefs.edit().putString("RIDER_NAME", sanitized).apply()
             meshTransport.setRiderName(sanitized)
+            if (convoyMesh.profile.value.name != sanitized) {
+                convoyMesh.updateProfile(convoyMesh.profile.value.copy(name = sanitized))
+            }
         }
+    }
+
+    /** Saves name, status, avatar and colour; the name is shared with the voice intercom too. */
+    fun updateProfile(profile: RiderProfile) {
+        convoyMesh.updateProfile(profile)
+        setRiderName(profile.name)
     }
 
     fun setBikeModel(model: String) {
@@ -100,12 +125,16 @@ class IntercomViewModel @Inject constructor(
 
     fun onPermissionsResult(granted: Boolean) {
         _hasPermissions.value = granted
+        // Start the offline mesh even if some permissions were refused; it uses whatever is allowed.
+        convoyMesh.start()
     }
 
     fun setCustomRideCode(code: String) {
         val sanitized = code.trim().uppercase()
         if (sanitized.isNotBlank()) {
             _customRideCode.value = sanitized
+            prefs.edit().putString("RIDE_CODE", sanitized).apply()
+            convoyMesh.setRoom(sanitized)
             if (connectionState.value == MeshConnectionState.CONNECTED ||
                 connectionState.value == MeshConnectionState.SEARCHING) {
                 // Seamlessly switch room
@@ -181,9 +210,14 @@ class IntercomViewModel @Inject constructor(
     fun triggerEmergencyHorn() {
         triggerLocalHornAlert(fromRemote = false)
         meshTransport.sendEmergencyHornAlert()
+        // Also carry the SOS over the offline mesh / internet, with location when available
+        val loc = LocationHelper.lastKnown(context)
+        convoyMesh.sendSos(loc?.first, loc?.second)
     }
 
     private fun triggerLocalHornAlert(fromRemote: Boolean) {
+        // The same SOS can arrive over Nearby, Hotspot and the mesh at once: sound it once.
+        if (fromRemote && _isEmergencyAlertActive.value) return
         audioEngine.playEmergencyHorn(viewModelScope)
         viewModelScope.launch {
             _isEmergencyAlertActive.value = true

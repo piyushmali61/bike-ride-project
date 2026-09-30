@@ -27,6 +27,7 @@ dependencies {
     implementation(project(":security"))
     implementation(project(":transport:local-nearby"))
     implementation(project(":service"))
+    implementation(project(":transport:mesh"))
 
     // Compose
     implementation(platform(libs.compose.bom))

@@ -57,7 +57,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: IntercomViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
     onSettings: () -> Unit = {},
-    onRidingMode: () -> Unit = {}
+    onRidingMode: () -> Unit = {},
+    onOpenChat: () -> Unit = {}
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
     val connectedRiders by viewModel.connectedRiders.collectAsState()
@@ -74,6 +75,12 @@ fun HomeScreen(
     val lastVoiceCommand by viewModel.lastVoiceCommand.collectAsState()
     val riderName by viewModel.riderName.collectAsState()
     val bikeModel by viewModel.bikeModel.collectAsState()
+    val selectedRoom by viewModel.customRideCode.collectAsState()
+    val riderProfile by viewModel.riderProfile.collectAsState()
+    val meshUnread by viewModel.meshUnread.collectAsState()
+    val meshBtLinks by viewModel.meshBluetoothLinks.collectAsState()
+    val meshRelays by viewModel.meshInternetRelays.collectAsState()
+    val meshPeers by viewModel.meshPeers.collectAsState()
 
     var showNameDialog by remember { mutableStateOf(false) }
     var showBikeDialog by remember { mutableStateOf(false) }
@@ -147,7 +154,9 @@ fun HomeScreen(
             AstraTopBar(
                 currentRoute = currentRoute,
                 isBluetoothConnected = isBluetoothConnected,
-                onCycleRoute = { viewModel.cycleAudioRoute() }
+                onCycleRoute = { viewModel.cycleAudioRoute() },
+                unread = meshUnread,
+                onOpenChat = onOpenChat
             )
         }
     ) { paddingValues ->
@@ -183,13 +192,27 @@ fun HomeScreen(
 
             item {
                 ConvoyRoomPanel(
-                    roomName = currentRoom,
+                    roomName = selectedRoom,
                     connectionState = connectionState,
                     connectedRiders = connectedRiders.values.toList(),
                     myRiderName = riderName,
                     isMuted = isMuted,
                     onSelectPreset = { viewModel.setCustomRideCode(it) },
-                    onEditRoom = { showRoomDialog = true }
+                    onEditRoom = { showRoomDialog = true },
+                    myProfile = riderProfile,
+                    onEditProfile = { showNameDialog = true }
+                )
+            }
+
+            item {
+                MeshChatCard(
+                    unread = meshUnread,
+                    bluetoothLinks = meshBtLinks,
+                    internetRelays = meshRelays,
+                    reachableRiders = meshPeers.values.count {
+                        System.currentTimeMillis() - it.lastSeen < com.bikeride.intercom.mesh.ConvoyMesh.PEER_ACTIVE_MS
+                    },
+                    onOpen = onOpenChat
                 )
             }
 
@@ -251,11 +274,11 @@ fun HomeScreen(
     // DIALOGS: RIDER NAME, BIKE MODEL, ROOM SWITCH
     // ═══════════════════════════════════════════════════════════════════
     if (showNameDialog) {
-        RiderNameDialog(
-            currentName = riderName,
+        ProfileDialog(
+            current = riderProfile,
             onDismiss = { showNameDialog = false },
-            onSave = { newName ->
-                viewModel.setRiderName(newName)
+            onSave = { profile ->
+                viewModel.updateProfile(profile)
                 showNameDialog = false
             }
         )
@@ -1248,7 +1271,9 @@ private val AstraDim = Color(0xFF64748B)
 private fun AstraTopBar(
     currentRoute: AudioRouteType,
     isBluetoothConnected: Boolean,
-    onCycleRoute: () -> Unit
+    onCycleRoute: () -> Unit,
+    unread: Int,
+    onOpenChat: () -> Unit
 ) {
     Surface(color = AstraBar, modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -1264,6 +1289,23 @@ private fun AstraTopBar(
                 Text("AstraRide", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
                 Text("Universal Rider Mesh", color = AstraGreen, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
+            Box {
+                Box(
+                    Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(AstraCardInner).clickable(onClick = onOpenChat),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Forum, contentDescription = "Mesh Chat", tint = AstraGreen, modifier = Modifier.size(22.dp))
+                }
+                if (unread > 0) {
+                    Box(
+                        Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp).size(20.dp).clip(CircleShape).background(Color(0xFFEF4444)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(if (unread > 9) "9+" else "$unread", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Spacer(Modifier.width(10.dp))
             val (label, icon) = when (currentRoute) {
                 AudioRouteType.HELMET_BLUETOOTH -> "Helmet" to Icons.Filled.Headset
                 AudioRouteType.LOUDSPEAKER -> "Speaker" to Icons.AutoMirrored.Filled.VolumeUp
@@ -1310,7 +1352,9 @@ private fun ConvoyRoomPanel(
     myRiderName: String,
     isMuted: Boolean,
     onSelectPreset: (String) -> Unit,
-    onEditRoom: () -> Unit
+    onEditRoom: () -> Unit,
+    myProfile: com.bikeride.intercom.mesh.RiderProfile,
+    onEditProfile: () -> Unit
 ) {
     val presets = listOf("CONVOY 1", "CONVOY 2", "SQUAD ALPHA", "APEX RIDERS", "SPEED RUN", "WEEKEND TOUR")
     val statusDot = when (connectionState) {
@@ -1385,7 +1429,23 @@ private fun ConvoyRoomPanel(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RiderPill(name = "$myRiderName (You)", role = "Host", isMuted = isMuted)
+            Surface(
+                modifier = Modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = onEditProfile),
+                shape = RoundedCornerShape(14.dp),
+                color = AstraCardInner,
+                border = BorderStroke(1.dp, Color(0xFF3B475C))
+            ) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    RiderAvatar(myProfile, size = 32)
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("$myRiderName (You)", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(if (isMuted) "Host · Muted" else "Host · Tap to edit", color = AstraMuted, fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit profile", tint = AstraBlue, modifier = Modifier.size(14.dp))
+                }
+            }
             connectedRiders.forEach { peer ->
                 RiderPill(name = peer.name, role = peer.connectionType, isMuted = peer.isMuted)
             }
@@ -1625,6 +1685,52 @@ private fun IntercomGuideCard() {
         ).forEach {
             Text(it, color = Color(0xFFCBD5E1), fontSize = 14.sp, lineHeight = 22.sp)
             Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
+@Composable
+private fun MeshChatCard(
+    unread: Int,
+    bluetoothLinks: Int,
+    internetRelays: Int,
+    reachableRiders: Int,
+    onOpen: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).clickable(onClick = onOpen),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = AstraCard),
+        border = BorderStroke(1.dp, Color(0xFF1F5135))
+    ) {
+        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF14331F)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Forum, contentDescription = null, tint = AstraGreen, modifier = Modifier.size(26.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Convoy Mesh Chat", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Messages, SOS & locations hop rider-to-rider — no internet needed",
+                    color = AstraMuted, fontSize = 13.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "📶 $bluetoothLinks nearby · 👥 $reachableRiders riders · " + if (internetRelays > 0) "🌐 online" else "offline",
+                    color = AstraBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold
+                )
+            }
+            if (unread > 0) {
+                Box(
+                    Modifier.size(28.dp).clip(CircleShape).background(Color(0xFFEF4444)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(if (unread > 99) "99+" else "$unread", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }

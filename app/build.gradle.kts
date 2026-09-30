@@ -14,8 +14,8 @@ android {
         applicationId = "com.bikeride.intercom"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.2.0"
+        versionCode = 3
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -67,6 +67,7 @@ dependencies {
     implementation(project(":transport:api"))
     implementation(project(":transport:local-nearby"))
     implementation(project(":transport:internet-webrtc"))
+    implementation(project(":transport:mesh"))
     implementation(project(":feature:ui"))
     implementation(project(":bluetooth"))
     implementation(project(":security"))

@@ -9,7 +9,7 @@
 
 [![Studio](https://img.shields.io/badge/Crafted%20By-Mythic%20Bharat%20Studios-orange?style=for-the-badge&logo=android)](https://github.com/piyushmali61)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B%20(API%2029--35)-brightgreen?style=for-the-badge&logo=android)](https://android.com)
-[![Release](https://img.shields.io/badge/Version-1.2.0--Release-blue?style=for-the-badge&logo=github)](https://github.com/piyushmali61/bike-ride-project/releases/tag/v1.0.0)
+[![Release](https://img.shields.io/badge/Version-1.3.0--Release-blue?style=for-the-badge&logo=github)](https://github.com/piyushmali61/bike-ride-project/releases/tag/v1.0.0)
 [![Battery](https://img.shields.io/badge/Battery-VAD%20%2B%20DTX%20Optimized-success?style=for-the-badge&logo=speedtest)](https://github.com/piyushmali61/bike-ride-project)
 [![Mesh](https://img.shields.io/badge/Mesh-Multi--Biker%20Cluster-purple?style=for-the-badge&logo=bluetooth)](https://github.com/piyushmali61/bike-ride-project)
 
@@ -19,7 +19,7 @@
 **Get the production release Android application directly on your phone:**
 
 <a href="https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk">
-  <img src="https://img.shields.io/badge/DOWNLOAD%20ASTRARIDE%20INTERCOM-RELEASE%20APK%20(47.1%20MB)-0284c7?style=for-the-badge&logo=android&logoColor=white" height="48" />
+  <img src="https://img.shields.io/badge/DOWNLOAD%20ASTRARIDE%20INTERCOM-RELEASE%20APK%20(47.5%20MB)-0284c7?style=for-the-badge&logo=android&logoColor=white" height="48" />
 </a>
 
 <p><em>Engineered and optimized for all modern Android mobile devices worldwide (Android 10 to 15+).</em></p>
@@ -74,6 +74,34 @@ graph TD
 * **Preset Rooms**: Choose from `CONVOY 1`, `CONVOY 2`, `SQUAD ALPHA`, `APEX RIDERS`, `SPEED RUN`, `WEEKEND TOUR`, or create your own custom Room Code.
 * **Full-Duplex Multi-Party Audio**: All bikers in the room hear each other simultaneously with hardware Acoustic Echo Cancellation (AEC) and Noise Suppression (NS).
 * **Live Rider Roster**: View all connected bikers with live speaking badges (green pulsing border), volume levels, and individual mute indicators.
+
+---
+
+## 📡 Convoy Mesh Chat — Works With No Internet
+
+Text, SOS alerts and location pins that hop **rider-to-rider over Bluetooth LE**, so a stretched-out convoy stays in touch even with zero signal — and switch to the internet automatically when any rider has data. No account, no server of our own.
+
+```text
+Rider A ──BLE──► Rider B ──BLE──► Rider C ──BLE──► Rider D      (no internet)
+                    │
+                    └──(has data)──► public Nostr relays ──► far-away riders
+```
+
+| Feature | How it works |
+|---|---|
+| **Multi-hop relay** | Every phone is also a relay. Packets start with a hop limit of 7 and lose one per hop, so they never loop forever. |
+| **Store-and-forward** | Recent messages (last 6 h) are kept and handed to any rider who comes back in range. Queued messages survive app restarts. |
+| **No duplicates** | Each packet has a unique ID; the same message arriving over two neighbours *and* the internet is shown once. |
+| **Internet fallback & sync** | The same encrypted packet is also published to free public Nostr relays. Riders with data get it instantly; riders who were offline catch up when they reconnect. Phones with data bridge nearby offline riders' messages to the internet. |
+| **Delivery receipts** | "✓ Sent", "🕓 Waiting for riders", "✓✓ Seen by N". |
+| **Quick alerts** | 🆘 SOS (sounds the alarm on every rider's phone, with your location), 📍 Location (opens in Maps), ⛽ Fuel stop, ☕ Break, 🐢 Slow down, 🔧 Bike trouble… |
+| **Rider profile** | Edit display name, status, avatar and colour — shared live with your convoy. The name is independent from the hidden device ID. |
+
+**Security:** messages are encrypted with AES-256-GCM using a key derived from the room code, and the header is authenticated so tampering is detected. Riders in *other* rooms can relay your packets but cannot read them. Bluetooth advertising carries no name or personal data. Stale or replayed packets (older than 6 h) are rejected.
+
+> **Honest limits:** Bluetooth LE reaches roughly 10–50 m between moving bikes; the *extra* distance comes from other riders relaying, not from a stronger radio. The room code is a shared key — anyone who knows it can read that room, so use an uncommon code for private rides. The mesh runs while the app is open or a ride is active.
+
+*The offline-mesh approach was studied from the public-domain [BitChat](https://github.com/permissionlesstech/bitchat) whitepaper; AstraRide's protocol, code and UI are its own.*
 
 ---
 
@@ -132,6 +160,8 @@ To ensure your phone's battery lasts throughout long touring days without draini
 | **Voice Recognition** | In-App Audio Phrase Spotter + Proximity Glove Wave (Zero Gemini popups) |
 | **State & Concurrency** | Reactive `StateFlow`, Kotlin Coroutines, Unidirectional Data Flow |
 | **Dependency Injection** | **Google Dagger Hilt** |
+| **Offline Mesh Chat** | Bluetooth LE GATT mesh (every phone central + peripheral), TTL multi-hop relay, store-and-forward, AES-256-GCM room encryption |
+| **Internet Sync (serverless)** | Public Nostr relays over WebSocket with built-in BIP340 Schnorr signing |
 | **Off-Grid Transport** | **Google Nearby Connections** (`Strategy.P2P_CLUSTER`) & raw Wi-Fi Direct UDP mesh |
 | **Cloud Transport** | **WebRTC DataChannel** (`ordered=false, maxRetransmits=0`) eliminating TCP head-of-line blocking |
 | **Audio DSP** | Hardware AEC (Acoustic Echo Cancellation), NS (Noise Suppression), AGC, +12dB Wind Boost |
@@ -143,7 +173,7 @@ To ensure your phone's battery lasts throughout long touring days without draini
 ## 📦 Direct APK Installation
 
 ### 1. Download Link
-* 🚀 [**AstraRide-Intercom.apk**](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk) *(47.1 MB, Optimized Production Release)*
+* 🚀 [**AstraRide-Intercom.apk**](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk) *(47.5 MB, Optimized Production Release)*
 
 ### 2. Quick Install via USB (ADB)
 ```powershell
