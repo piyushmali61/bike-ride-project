@@ -115,8 +115,8 @@ To ensure your phone's battery lasts throughout long touring days without draini
 ## 📱 User Interface Preview
 
 <div align="center">
-  <img src="assets/images/app_ui_preview.jpg" alt="AstraRide Mobile UI" width="380" style="border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);" />
-  <p><em>AstraRide OLED Dark Mode: High-contrast daytime readability & real-time mesh link telemetry.</em></p>
+  <img src="assets/images/app_ui_preview.png" alt="AstraRide Mobile UI" width="380" style="border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);" />
+  <p><em>AstraRide Universal Rider Mesh: convoy rooms, hands-free mute, and 1-click TAP TO RIDE intercom.</em></p>
 </div>
 
 ---
