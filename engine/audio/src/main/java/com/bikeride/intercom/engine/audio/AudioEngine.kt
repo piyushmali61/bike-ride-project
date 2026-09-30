@@ -43,8 +43,9 @@ class AudioEngine @Inject constructor(
         capture.setVolumeBoost(multiplier)
     }
 
-    fun playIncomingFrame(frame: ByteArray) {
-        playback.playAudioFrame(frame)
+    /** Queue one rider's 20 ms frame for mixing. Never blocks. */
+    fun playIncomingFrame(senderId: Int, frame: ByteArray) {
+        playback.playAudioFrame(senderId, frame)
     }
 
     fun playEmergencyHorn(scope: CoroutineScope? = null) {

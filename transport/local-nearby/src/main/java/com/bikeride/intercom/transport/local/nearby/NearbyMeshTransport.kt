@@ -54,6 +54,10 @@ class NearbyMeshTransport @Inject constructor(
         const val PKT_PONG: Byte = 0x03
         const val PKT_HORN: Byte = 0x04
         const val PKT_MUTE: Byte = 0x05
+
+        /** 20 ms of 16 kHz mono 16-bit PCM (matches engine AudioConfig.FRAME_SIZE_BYTES). */
+        const val PCM_FRAME_BYTES = 640
+        private const val RELAY_SPEECH_RMS = 700.0
     }
 
     // Fixed service ID matching application package ensures 100% Google Play Services compatibility
@@ -99,7 +103,14 @@ class NearbyMeshTransport @Inject constructor(
     private var isAdvertisingOrDiscovering = false
     private val pendingEndpoints = ConcurrentHashMap.newKeySet<String>()
 
-    var onAudioFrameReceived: ((ByteArray) -> Unit)? = null
+    /** Called once per unique voice frame with the speaker's id and 20 ms of PCM. */
+    var onAudioFrameReceived: ((senderId: Int, pcm: ByteArray) -> Unit)? = null
+
+    // ── Voice mesh: dedup across links + relay through riders in the middle ──
+    private val myVoiceId: Int = java.security.SecureRandom().nextInt().let { if (it == 0) 1 else it }
+    private var voiceSeq = 0
+    private val voiceDedup = VoiceDedup()
+    private val lastLoudAt = ConcurrentHashMap<Int, Long>()
 
     private fun buildMyEndpointName(): String {
         val displayName = myRiderName.ifBlank { "Rider-$myRiderId" }
@@ -114,10 +125,7 @@ class NearbyMeshTransport @Inject constructor(
 
             when (bytes[0]) {
                 PKT_AUDIO -> {
-                    if (bytes.size > 1) {
-                        val audioData = bytes.copyOfRange(1, bytes.size)
-                        onAudioFrameReceived?.invoke(audioData)
-                    }
+                    if (bytes.size > 1) handleVoice(bytes.copyOfRange(1, bytes.size), nearbySource = endpointId, lanSource = null)
                 }
                 PKT_PING -> {
                     if (bytes.size >= 9) {
@@ -262,8 +270,8 @@ class NearbyMeshTransport @Inject constructor(
         _state.value = MeshConnectionState.SEARCHING
 
         // 1. Start Local Wi-Fi & Personal Hotspot UDP Call Transport
-        localLanTransport.onAudioFrameReceived = { frame ->
-            onAudioFrameReceived?.invoke(frame)
+        localLanTransport.onAudioFrameReceived = { payload, host ->
+            handleVoice(payload, nearbySource = null, lanSource = host)
         }
         localLanTransport.onEmergencyHornReceived = {
             val now = SystemClock.elapsedRealtime()
@@ -345,18 +353,54 @@ class NearbyMeshTransport @Inject constructor(
         }
     }
 
+    /** Sends 20 ms of our own microphone PCM to every rider on every link. */
     fun sendAudioFrame(frame: ByteArray) {
         if (_state.value != MeshConnectionState.CONNECTED && localLanTransport.connectedLanPeers.value.isEmpty()) return
+        val seq = synchronized(this) { voiceSeq = (voiceSeq + 1) and 0xFFFF; voiceSeq }
+        broadcastVoice(VoiceFrame(myVoiceId, seq, VoiceFrame.DEFAULT_TTL, frame).encode(), nearbySource = null, lanSource = null)
+    }
 
-        // 1. Send over Local Hotspot/Wi-Fi UDP (ultra-fast)
-        localLanTransport.sendAudioFrame(frame)
+    /**
+     * One voice frame from any link: play it once, then pass it on so riders who cannot hear
+     * the speaker directly still get it (A → B → C). Silence is not relayed, to save bandwidth.
+     */
+    private fun handleVoice(payload: ByteArray, nearbySource: String?, lanSource: String?) {
+        val legacyId = (nearbySource ?: lanSource ?: "").hashCode()
+        val frame = VoiceFrame.decode(payload, legacyId, PCM_FRAME_BYTES) ?: return
+        if (frame.senderId == myVoiceId) return
+        if (!voiceDedup.firstTime(frame)) return
 
-        // 2. Send over Nearby Connections P2P
-        val nearbyEndpoints = _nearbyRiders.value.keys.toList()
+        onAudioFrameReceived?.invoke(frame.senderId, frame.pcm)
+
+        if (frame.ttl > 1 && isSpeech(frame)) {
+            broadcastVoice(frame.copy(ttl = frame.ttl - 1).encode(), nearbySource, lanSource)
+        }
+    }
+
+    private fun isSpeech(frame: VoiceFrame): Boolean {
+        val pcm = frame.pcm
+        var sum = 0.0
+        var i = 0
+        while (i + 1 < pcm.size) {
+            val sample = ((pcm[i + 1].toInt() shl 8) or (pcm[i].toInt() and 0xFF)).toShort().toInt()
+            sum += sample * sample
+            i += 2
+        }
+        val rms = kotlin.math.sqrt(sum / (pcm.size / 2).coerceAtLeast(1))
+        val now = SystemClock.elapsedRealtime()
+        if (rms > RELAY_SPEECH_RMS) lastLoudAt[frame.senderId] = now
+        // Keep relaying ~300 ms after speech so word endings are not clipped
+        return now - (lastLoudAt[frame.senderId] ?: 0L) < 300L
+    }
+
+    private fun broadcastVoice(voice: ByteArray, nearbySource: String?, lanSource: String?) {
+        localLanTransport.sendAudioFrame(voice, exceptHost = lanSource)
+
+        val nearbyEndpoints = _nearbyRiders.value.keys.filter { it != nearbySource }
         if (nearbyEndpoints.isNotEmpty()) {
-            val packet = ByteArray(frame.size + 1)
+            val packet = ByteArray(voice.size + 1)
             packet[0] = PKT_AUDIO
-            System.arraycopy(frame, 0, packet, 1, frame.size)
+            System.arraycopy(voice, 0, packet, 1, voice.size)
             try {
                 client.sendPayload(nearbyEndpoints, Payload.fromBytes(packet))
             } catch (e: Exception) {
@@ -439,6 +483,8 @@ class NearbyMeshTransport @Inject constructor(
         }
         isAdvertisingOrDiscovering = false
         pendingEndpoints.clear()
+        voiceDedup.clear()
+        lastLoudAt.clear()
         _nearbyRiders.value = emptyMap()
         _connectedRiders.value = emptyMap()
         _state.value = MeshConnectionState.IDLE

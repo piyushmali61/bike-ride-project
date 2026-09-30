@@ -63,7 +63,8 @@ class LocalLanTransport @Inject constructor(
     private var isRunning = false
     private var currentRoom = "CONVOY 1"
 
-    var onAudioFrameReceived: ((ByteArray) -> Unit)? = null
+    /** Audio payload (after the type byte) and the sender's host key, for relay exclusion. */
+    var onAudioFrameReceived: ((ByteArray, String) -> Unit)? = null
     var onPeerMuteChanged: ((String, Boolean) -> Unit)? = null
     var onEmergencyHornReceived: (() -> Unit)? = null
 
@@ -122,7 +123,7 @@ class LocalLanTransport @Inject constructor(
                         val key = senderAddress.hostAddress ?: "$senderAddress"
                         peerLastSeen[key] = SystemClock.elapsedRealtime()
                         val audioData = data.copyOfRange(1, len)
-                        onAudioFrameReceived?.invoke(audioData)
+                        onAudioFrameReceived?.invoke(audioData, key)
                     } else if (data[0] == PKT_MUTE && len > 1) {
                         val key = senderAddress.hostAddress ?: "$senderAddress"
                         peerLastSeen[key] = SystemClock.elapsedRealtime()
@@ -244,15 +245,17 @@ class LocalLanTransport @Inject constructor(
         onPeerMuteChanged?.invoke(peer.displayName, isMuted)
     }
 
-    fun sendAudioFrame(frame: ByteArray) {
-        val peers = _connectedLanPeers.value.values
+    /** Sends an audio payload to every LAN rider except [exceptHost] (the one we are relaying for). */
+    fun sendAudioFrame(frame: ByteArray, exceptHost: String? = null) {
+        val peers = _connectedLanPeers.value
         if (peers.isEmpty() || !isRunning) return
 
         val packetData = ByteArray(frame.size + 1)
         packetData[0] = PKT_AUDIO
         System.arraycopy(frame, 0, packetData, 1, frame.size)
 
-        for (peer in peers) {
+        for ((host, peer) in peers) {
+            if (host == exceptHost) continue
             try {
                 val packet = DatagramPacket(packetData, packetData.size, peer.address, peer.port)
                 socket?.send(packet)

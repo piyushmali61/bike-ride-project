@@ -74,6 +74,7 @@ class IntercomService : Service() {
     }
 
     private fun acquireWakeLock() {
+        releaseLocks() // a room switch restarts the ride: never leak the previous locks
         try {
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AstraRide::IntercomWakeLock").apply {
@@ -113,8 +114,8 @@ class IntercomService : Service() {
 
     private fun wireAudioAndTransport() {
         // Feed incoming mesh audio to playback engine
-        meshTransport.onAudioFrameReceived = { frame ->
-            audioEngine.playIncomingFrame(frame)
+        meshTransport.onAudioFrameReceived = { senderId, frame ->
+            audioEngine.playIncomingFrame(senderId, frame)
         }
 
         // Pipe captured microphone audio to mesh transport
@@ -208,13 +209,23 @@ class IntercomService : Service() {
             ACTION_TOGGLE_MUTE -> {
                 toggleMuteFromAction()
             }
-            ACTION_START, null -> {
-                val rideCode = intent?.getStringExtra("RIDE_CODE") ?: "CONVOY 1"
-                startForegroundWithNotification(rideCode)
+            ACTION_START -> {
+                val rideCode = intent.getStringExtra("RIDE_CODE") ?: "CONVOY 1"
+                if (!startForegroundWithNotification(rideCode)) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
                 startRide(rideCode)
             }
+            null -> {
+                // Restarted by the system after the process was killed. Android 14+ forbids starting a
+                // microphone foreground service from the background, which would crash the app, so
+                // stay stopped; the rider taps RIDE again when they open the app.
+                if (!isRunning) stopSelf()
+                return START_NOT_STICKY
+            }
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun startRide(rideCode: String?) {
@@ -230,30 +241,38 @@ class IntercomService : Service() {
         voiceCommandDetector.stopListening()
         audioEngine.stop()
         meshTransport.disconnect()
-        wakeLock?.let {
-            if (it.isHeld) it.release()
-        }
-        wifiLock?.let {
-            if (it.isHeld) it.release()
-        }
-        multicastLock?.let {
-            if (it.isHeld) it.release()
-        }
+        releaseLocks()
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
-    private fun startForegroundWithNotification(roomCode: String) {
+    private fun releaseLocks() {
+        try { wakeLock?.let { if (it.isHeld) it.release() } } catch (e: Exception) { Timber.w(e) }
+        try { wifiLock?.let { if (it.isHeld) it.release() } } catch (e: Exception) { Timber.w(e) }
+        try { multicastLock?.let { if (it.isHeld) it.release() } } catch (e: Exception) { Timber.w(e) }
+        wakeLock = null
+        wifiLock = null
+        multicastLock = null
+    }
+
+    /** Returns false when Android refuses the foreground service (e.g. started from background). */
+    private fun startForegroundWithNotification(roomCode: String): Boolean {
         val notification = buildNotification("Starting room mesh [$roomCode]...")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            var fgsType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                fgsType = fgsType or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                var fgsType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    fgsType = fgsType or ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                }
+                startForeground(NOTIFICATION_ID, notification, fgsType)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
             }
-            startForeground(NOTIFICATION_ID, notification, fgsType)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+            isRunning = true
+            true
+        } catch (e: Exception) {
+            Timber.e(e, "Foreground service not allowed right now")
+            false
         }
-        isRunning = true
     }
 
     private var lastNotificationText: String? = null

@@ -9,7 +9,7 @@
 
 [![Studio](https://img.shields.io/badge/Crafted%20By-Mythic%20Bharat%20Studios-orange?style=for-the-badge&logo=android)](https://github.com/piyushmali61)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B%20(API%2029--35)-brightgreen?style=for-the-badge&logo=android)](https://android.com)
-[![Release](https://img.shields.io/badge/Version-1.3.0--Release-blue?style=for-the-badge&logo=github)](https://github.com/piyushmali61/bike-ride-project/releases/tag/v1.0.0)
+[![Release](https://img.shields.io/badge/Version-1.4.0--Release-blue?style=for-the-badge&logo=github)](https://github.com/piyushmali61/bike-ride-project/releases/tag/v1.0.0)
 [![Battery](https://img.shields.io/badge/Battery-VAD%20%2B%20DTX%20Optimized-success?style=for-the-badge&logo=speedtest)](https://github.com/piyushmali61/bike-ride-project)
 [![Mesh](https://img.shields.io/badge/Mesh-Multi--Biker%20Cluster-purple?style=for-the-badge&logo=bluetooth)](https://github.com/piyushmali61/bike-ride-project)
 
@@ -74,6 +74,21 @@ graph TD
 * **Preset Rooms**: Choose from `CONVOY 1`, `CONVOY 2`, `SQUAD ALPHA`, `APEX RIDERS`, `SPEED RUN`, `WEEKEND TOUR`, or create your own custom Room Code.
 * **Full-Duplex Multi-Party Audio**: All bikers in the room hear each other simultaneously with hardware Acoustic Echo Cancellation (AEC) and Noise Suppression (NS).
 * **Live Rider Roster**: View all connected bikers with live speaking badges (green pulsing border), volume levels, and individual mute indicators.
+
+---
+
+## 🎙️ Voice Mesh — Riders Relay Each Other's Voice
+
+Voice now hops through riders in the middle, so a stretched-out convoy stays on one intercom:
+
+```text
+Rider A ──Nearby/Hotspot──► Rider B ──Nearby/Hotspot──► Rider C      (A and C out of range)
+```
+
+* Every voice frame carries a speaker ID and sequence number, so the same frame arriving over Nearby **and** Hotspot — or via two relaying riders — plays **once**.
+* Frames relay up to **4 hops**; only real speech is relayed (silence is skipped to save bandwidth).
+* A per-rider **jitter buffer + mixer** plays several riders talking at once cleanly and caps delay at 200 ms, so latency can never creep up during a long ride.
+* Each hop adds a little delay (~20–60 ms on Wi-Fi/Nearby). Voice uses Wi-Fi/Nearby links; Bluetooth LE is too slow for live voice and is used for chat only.
 
 ---
 

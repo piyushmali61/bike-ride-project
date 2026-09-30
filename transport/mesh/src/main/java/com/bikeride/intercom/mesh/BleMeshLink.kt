@@ -193,33 +193,41 @@ class BleMeshLink(
 
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartFailure(errorCode: Int) {
-            Timber.w("Mesh: advertising failed ($errorCode)")
+            guard("onStartFailure") {
+                Timber.w("Mesh: advertising failed ($errorCode)")
+            }
         }
     }
 
     private val serverCallback = object : BluetoothGattServerCallback() {
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
-            val id = "s:${device.address}"
-            if (newState == BluetoothProfile.STATE_DISCONNECTED) removeLink(id)
+            guard("onConnectionStateChange") {
+                val id = "s:${device.address}"
+                if (newState == BluetoothProfile.STATE_DISCONNECTED) removeLink(id)
+            }
         }
 
         override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
-            links["s:${device.address}"]?.mtu = mtu
-            pendingServerMtu[device.address] = mtu
+            guard("onMtuChanged") {
+                links["s:${device.address}"]?.mtu = mtu
+                pendingServerMtu[device.address] = mtu
+            }
         }
 
         override fun onDescriptorWriteRequest(
             device: BluetoothDevice, requestId: Int, descriptor: BluetoothGattDescriptor,
             preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?
         ) {
-            if (responseNeeded) gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
-            // The client subscribed to notifications: it is now a full link.
-            if (descriptor.uuid == CCCD_UUID && value?.contentEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) == true) {
-                val id = "s:${device.address}"
-                if (!links.containsKey(id)) {
-                    val link = Link(id, device, gatt = null)
-                    link.mtu = pendingServerMtu[device.address] ?: 185
-                    addLink(link)
+            guard("onDescriptorWriteRequest") {
+                if (responseNeeded) gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
+                // The client subscribed to notifications: it is now a full link.
+                if (descriptor.uuid == CCCD_UUID && value?.contentEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) == true) {
+                    val id = "s:${device.address}"
+                    if (!links.containsKey(id)) {
+                        val link = Link(id, device, gatt = null)
+                        link.mtu = pendingServerMtu[device.address] ?: 185
+                        addLink(link)
+                    }
                 }
             }
         }
@@ -228,12 +236,16 @@ class BleMeshLink(
             device: BluetoothDevice, requestId: Int, characteristic: BluetoothGattCharacteristic,
             preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?
         ) {
-            if (responseNeeded) gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
-            if (value != null) onReceive("s:${device.address}", value)
+            guard("onCharacteristicWriteRequest") {
+                if (responseNeeded) gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
+                if (value != null) onReceive("s:${device.address}", value)
+            }
         }
 
         override fun onNotificationSent(device: BluetoothDevice, status: Int) {
-            links["s:${device.address}"]?.opDone?.complete(Unit)
+            guard("onNotificationSent") {
+                links["s:${device.address}"]?.opDone?.complete(Unit)
+            }
         }
     }
 
@@ -252,93 +264,120 @@ class BleMeshLink(
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val device = result.device
-            val id = "c:${device.address}"
-            val centralLinks = links.keys.count { it.startsWith("c:") }
-            if (links.containsKey(id) || !connecting.add(id)) return
-            if (centralLinks >= MAX_CENTRAL_LINKS) {
-                connecting.remove(id)
-                return
-            }
-            try {
-                device.connectGatt(context, false, clientCallback, BluetoothDevice.TRANSPORT_LE)
-            } catch (e: Exception) {
-                connecting.remove(id)
-                Timber.d(e, "Mesh: connect failed")
+            guard("onScanResult") {
+                val device = result.device
+                val id = "c:${device.address}"
+                val centralLinks = links.keys.count { it.startsWith("c:") }
+                if (links.containsKey(id) || !connecting.add(id)) return
+                if (centralLinks >= MAX_CENTRAL_LINKS) {
+                    connecting.remove(id)
+                    return
+                }
+                try {
+                    device.connectGatt(context, false, clientCallback, BluetoothDevice.TRANSPORT_LE)
+                } catch (e: Exception) {
+                    connecting.remove(id)
+                    Timber.d(e, "Mesh: connect failed")
+                }
             }
         }
 
         override fun onScanFailed(errorCode: Int) {
-            Timber.w("Mesh: scan failed ($errorCode)")
+            guard("onScanFailed") {
+                Timber.w("Mesh: scan failed ($errorCode)")
+            }
         }
     }
 
     private val clientCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            val id = "c:${gatt.device.address}"
-            if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
-                gatt.requestMtu(517)
-            } else {
-                connecting.remove(id)
-                removeLink(id)
-                try { gatt.close() } catch (_: Exception) {}
+            guard("onConnectionStateChange") {
+                val id = "c:${gatt.device.address}"
+                if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
+                    gatt.requestMtu(517)
+                } else {
+                    connecting.remove(id)
+                    removeLink(id)
+                    try { gatt.close() } catch (_: Exception) {}
+                }
             }
         }
 
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-            pendingClientMtu[gatt.device.address] = mtu
-            gatt.discoverServices()
+            guard("onMtuChanged") {
+                pendingClientMtu[gatt.device.address] = mtu
+                gatt.discoverServices()
+            }
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            val ch = gatt.getService(SERVICE_UUID)?.getCharacteristic(CHAR_UUID)
-            if (ch == null) {
-                gatt.disconnect()
-                return
-            }
-            gatt.setCharacteristicNotification(ch, true)
-            val cccd = ch.getDescriptor(CCCD_UUID) ?: return
-            if (Build.VERSION.SDK_INT >= 33) {
-                gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-            } else {
-                @Suppress("DEPRECATION")
-                cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                @Suppress("DEPRECATION")
-                gatt.writeDescriptor(cccd)
+            guard("onServicesDiscovered") {
+                val ch = gatt.getService(SERVICE_UUID)?.getCharacteristic(CHAR_UUID)
+                if (ch == null) {
+                    gatt.disconnect()
+                    return
+                }
+                gatt.setCharacteristicNotification(ch, true)
+                val cccd = ch.getDescriptor(CCCD_UUID) ?: return
+                if (Build.VERSION.SDK_INT >= 33) {
+                    gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                } else {
+                    @Suppress("DEPRECATION")
+                    cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    @Suppress("DEPRECATION")
+                    gatt.writeDescriptor(cccd)
+                }
             }
         }
 
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-            val id = "c:${gatt.device.address}"
-            connecting.remove(id)
-            if (status != BluetoothGatt.GATT_SUCCESS) {
-                gatt.disconnect()
-                return
+            guard("onDescriptorWrite") {
+                val id = "c:${gatt.device.address}"
+                connecting.remove(id)
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    gatt.disconnect()
+                    return
+                }
+                val link = Link(id, gatt.device, gatt)
+                link.mtu = pendingClientMtu[gatt.device.address] ?: 23
+                link.characteristic = descriptor.characteristic
+                addLink(link)
             }
-            val link = Link(id, gatt.device, gatt)
-            link.mtu = pendingClientMtu[gatt.device.address] ?: 23
-            link.characteristic = descriptor.characteristic
-            addLink(link)
         }
 
         override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-            links["c:${gatt.device.address}"]?.opDone?.complete(Unit)
+            guard("onCharacteristicWrite") {
+                links["c:${gatt.device.address}"]?.opDone?.complete(Unit)
+            }
         }
 
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
-            onReceive("c:${gatt.device.address}", value)
+            guard("onCharacteristicChanged") {
+                onReceive("c:${gatt.device.address}", value)
+            }
         }
 
         @Deprecated("Used below API 33")
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            if (Build.VERSION.SDK_INT < 33) {
-                @Suppress("DEPRECATION")
-                characteristic.value?.let { onReceive("c:${gatt.device.address}", it) }
+            guard("onCharacteristicChanged") {
+                if (Build.VERSION.SDK_INT < 33) {
+                    @Suppress("DEPRECATION")
+                    characteristic.value?.let { onReceive("c:${gatt.device.address}", it) }
+                }
             }
         }
     }
 
     private val pendingClientMtu = ConcurrentHashMap<String, Int>()
+
+    /** Bluetooth can be switched off or its permission revoked mid-ride; never let that crash the app. */
+    private inline fun guard(where: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (e: Exception) {
+            Timber.w(e, "Mesh: Bluetooth error in $where")
+        }
+    }
 
     private fun addLink(link: Link) {
         val s = scope ?: return

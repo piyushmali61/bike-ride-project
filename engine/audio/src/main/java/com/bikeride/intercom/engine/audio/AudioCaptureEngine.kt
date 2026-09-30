@@ -3,6 +3,7 @@ package com.bikeride.intercom.engine.audio
 import android.annotation.SuppressLint
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Process
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import timber.log.Timber
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.sqrt
 
 /**
@@ -46,9 +48,10 @@ class AudioCaptureEngine {
     private val _outgoingFrames = MutableSharedFlow<ByteArray>(extraBufferCapacity = 8)
     val outgoingFrames: SharedFlow<ByteArray> = _outgoingFrames.asSharedFlow()
 
-    private var audioRecord: AudioRecord? = null
-    private var captureJob: Job? = null
-    private var volumeBoostMultiplier: Float = 1.0f // 1.0x to 4.0x (+12dB)
+    /** Each capture thread has its own flag; only that thread ever touches its AudioRecord. */
+    @Volatile private var active: AtomicBoolean? = null
+    private var captureThread: Thread? = null
+    @Volatile private var volumeBoostMultiplier: Float = 1.0f // 1.0x to 4.0x (+12dB)
 
     fun setMuted(muted: Boolean) {
         _isMuted.value = muted
@@ -61,109 +64,97 @@ class AudioCaptureEngine {
         volumeBoostMultiplier = multiplier.coerceIn(1.0f, 4.0f)
     }
 
-    @SuppressLint("MissingPermission")
+    @Synchronized
     fun startCapture(scope: CoroutineScope) {
-        if (captureJob != null) return
+        if (active?.get() == true) return
+        val flag = AtomicBoolean(true)
+        active = flag
+        captureThread = Thread({ captureLoop(flag) }, "AstraRide-Capture").apply { start() }
+    }
 
-        val minBufSize = AudioRecord.getMinBufferSize(
-            AudioConfig.SAMPLE_RATE_HZ,
-            AudioConfig.CHANNEL_IN,
-            AudioConfig.ENCODING
-        )
+    @SuppressLint("MissingPermission")
+    private fun createRecorder(): AudioRecord? {
+        val minBufSize = AudioRecord.getMinBufferSize(AudioConfig.SAMPLE_RATE_HZ, AudioConfig.CHANNEL_IN, AudioConfig.ENCODING)
         val bufferSize = maxOf(minBufSize, AudioConfig.FRAME_SIZE_BYTES * 4)
+        for (source in intArrayOf(MediaRecorder.AudioSource.VOICE_COMMUNICATION, MediaRecorder.AudioSource.MIC)) {
+            try {
+                val rec = AudioRecord(source, AudioConfig.SAMPLE_RATE_HZ, AudioConfig.CHANNEL_IN, AudioConfig.ENCODING, bufferSize)
+                if (rec.state == AudioRecord.STATE_INITIALIZED) return rec
+                rec.release()
+            } catch (e: Exception) {
+                Timber.w(e, "AudioRecord source $source unavailable")
+            }
+        }
+        return null
+    }
 
+    private fun captureLoop(flag: AtomicBoolean) {
+        Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
+        val recorder = createRecorder()
+        if (recorder == null) {
+            Timber.e("Failed to initialize AudioRecord (microphone busy or permission missing)")
+            flag.set(false)
+            return
+        }
+        val frameBytes = ByteArray(AudioConfig.FRAME_SIZE_BYTES)
+        val shortBuffer = ShortArray(AudioConfig.SAMPLES_PER_FRAME)
         try {
-            audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                AudioConfig.SAMPLE_RATE_HZ,
-                AudioConfig.CHANNEL_IN,
-                AudioConfig.ENCODING,
-                bufferSize
-            )
-
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                audioRecord?.release()
-                audioRecord = AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    AudioConfig.SAMPLE_RATE_HZ,
-                    AudioConfig.CHANNEL_IN,
-                    AudioConfig.ENCODING,
-                    bufferSize
-                )
-            }
-
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Timber.e("Failed to initialize AudioRecord")
-                return
-            }
-
-            audioRecord?.startRecording()
-            Timber.i("AudioRecord capture started at ${AudioConfig.SAMPLE_RATE_HZ}Hz with Battery-Saver VAD")
-
-            captureJob = scope.launch(Dispatchers.IO) {
-                val frameBytes = ByteArray(AudioConfig.FRAME_SIZE_BYTES)
-                val shortBuffer = ShortArray(AudioConfig.SAMPLES_PER_FRAME)
-
-                var silenceCounter = 0
-                var dtxKeepaliveCounter = 0
-
-                while (isActive) {
-                    val read = audioRecord?.read(frameBytes, 0, frameBytes.size) ?: -1
-                    if (read > 0) {
-                        _rawFrames.tryEmit(frameBytes.copyOf())
-
-                        if (_isMuted.value) {
-                            _micAmplitude.value = 0f
-                            continue
-                        }
-
-                        // Convert bytes to shorts for amplitude calculation and boost
-                        ByteBuffer.wrap(frameBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shortBuffer)
-
-                        var sumSquares = 0.0
-                        var boosted = false
-                        val boost = volumeBoostMultiplier
-
-                        for (i in shortBuffer.indices) {
-                            var sample = shortBuffer[i].toInt()
-                            if (boost > 1.01f) {
-                                sample = (sample * boost).toInt()
-                                sample = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-                                shortBuffer[i] = sample.toShort()
-                                boosted = true
-                            }
-                            sumSquares += sample * sample
-                        }
-
-                        if (boosted) {
-                            ByteBuffer.wrap(frameBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(shortBuffer)
-                        }
-
-                        // Calculate normalized RMS (0.0 to 1.0)
-                        val rms = sqrt(sumSquares / shortBuffer.size)
-                        val normalized = (rms / 8000.0).toFloat().coerceIn(0f, 1f)
-                        _micAmplitude.value = normalized
-
-                        // Continuous full-duplex intercom stream: words are never cut off or dropped
-                        _outgoingFrames.tryEmit(frameBytes.copyOf())
-                    }
+            recorder.startRecording()
+            Timber.i("AudioRecord capture started at ${AudioConfig.SAMPLE_RATE_HZ}Hz")
+            while (flag.get()) {
+                val read = recorder.read(frameBytes, 0, frameBytes.size)
+                if (read < 0) {
+                    Timber.w("AudioRecord read error $read, stopping capture")
+                    break
                 }
+                if (read != frameBytes.size) continue
+
+                _rawFrames.tryEmit(frameBytes.copyOf())
+
+                if (_isMuted.value) {
+                    _micAmplitude.value = 0f
+                    continue
+                }
+
+                ByteBuffer.wrap(frameBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shortBuffer)
+                var sumSquares = 0.0
+                val boost = volumeBoostMultiplier
+                val boosted = boost > 1.01f
+                for (i in shortBuffer.indices) {
+                    var sample = shortBuffer[i].toInt()
+                    if (boosted) {
+                        sample = (sample * boost).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+                        shortBuffer[i] = sample.toShort()
+                    }
+                    sumSquares += sample.toDouble() * sample
+                }
+                if (boosted) {
+                    ByteBuffer.wrap(frameBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(shortBuffer)
+                }
+                _micAmplitude.value = (sqrt(sumSquares / shortBuffer.size) / 8000.0).toFloat().coerceIn(0f, 1f)
+
+                // Continuous full-duplex intercom stream: words are never cut off or dropped
+                _outgoingFrames.tryEmit(frameBytes.copyOf())
             }
         } catch (e: Exception) {
-            Timber.e(e, "Error starting AudioCaptureEngine")
+            Timber.e(e, "Capture loop error")
+        } finally {
+            try { recorder.stop() } catch (_: Exception) {}
+            recorder.release()
+            _micAmplitude.value = 0f
+            flag.set(false)
         }
     }
 
+    @Synchronized
     fun stopCapture() {
-        captureJob?.cancel()
-        captureJob = null
-        try {
-            audioRecord?.stop()
-            audioRecord?.release()
-        } catch (e: Exception) {
-            Timber.e(e, "Error stopping AudioRecord")
+        active?.set(false)
+        active = null
+        captureThread?.let {
+            it.join(1000) // a read returns within one 20 ms frame
+            if (it.isAlive) Timber.w("Capture thread did not stop in time")
         }
-        audioRecord = null
+        captureThread = null
         _micAmplitude.value = 0f
     }
 }
