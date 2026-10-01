@@ -743,7 +743,8 @@ private fun ConvoyRoomPanel(
                         text = "Convoy Room",
                         color = Color.White,
                         fontSize = 17.5.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                     Text(
                         text = subtitle,
@@ -762,16 +763,24 @@ private fun ConvoyRoomPanel(
                         )
                         Spacer(Modifier.width(5.dp))
                         Text(
-                            text = "${maxOf(1, connectedRiders.size + 1)} riders connected",
+                            text = "${maxOf(1, connectedRiders.size + 1)} " +
+                                (if (connectedRiders.isEmpty()) "rider" else "riders") + " connected",
                             color = Color(0xFF00E676),
                             fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
 
+            }
+
                 // Action buttons: Room (blue) and Delete (red)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            ) {
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
@@ -808,7 +817,6 @@ private fun ConvoyRoomPanel(
                         }
                     }
                 }
-            }
 
             Spacer(Modifier.height(14.dp))
 
