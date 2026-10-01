@@ -5,6 +5,8 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.AnimatedVisibility
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -358,6 +360,8 @@ private fun RidePanel(
     onPhoto: () -> Unit,
     sendingPhoto: Boolean
 ) {
+    var alertsVisible by rememberSaveable { mutableStateOf(true) }
+    var showMore by rememberSaveable { mutableStateOf(false) }
     Surface(color = ChatBar) {
         Column(
             Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(10.dp),
@@ -367,10 +371,44 @@ private fun RidePanel(
                 BigButton("🆘  SOS", SosRed, Modifier.weight(1f).height(60.dp), filled = true, onClick = onSos)
                 BigButton("📍  LOCATION", ChatGreen, Modifier.weight(1f).height(60.dp), filled = false, onClick = onLocation)
             }
-            IntercomViewModel.QUICK_ALERTS.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { label ->
-                        BigButton(label, Color(0xFF475569), Modifier.weight(1f).height(52.dp), filled = false) { onQuickAlert(label) }
+            // Collapsible alerts: riders can hide them for more message space, or open extra ones
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ChatInner),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PanelToggle(
+                    label = if (alertsVisible) "▼  Hide alerts" else "▲  Show alerts",
+                    modifier = Modifier.weight(1f),
+                    onClick = { alertsVisible = !alertsVisible }
+                )
+                if (alertsVisible) {
+                    Box(Modifier.width(1.dp).height(24.dp).background(Color(0xFF2B3547)))
+                    PanelToggle(
+                        label = if (showMore) "Less  ▲" else "More (${EXTRA_ALERTS.size})  ▼",
+                        modifier = Modifier.weight(1f),
+                        onClick = { showMore = !showMore }
+                    )
+                }
+            }
+            AnimatedVisibility(visible = alertsVisible) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IntercomViewModel.QUICK_ALERTS.chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { label ->
+                                BigButton(label, Color(0xFF475569), Modifier.weight(1f).height(52.dp), filled = false) { onQuickAlert(label) }
+                            }
+                        }
+                    }
+                    AnimatedVisibility(visible = showMore) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            EXTRA_ALERTS.chunked(2).forEach { row ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    row.forEach { label ->
+                                        BigButton(label, Color(0xFF334155), Modifier.weight(1f).height(48.dp), filled = false, fontSize = 16) { onQuickAlert(label) }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -415,8 +453,24 @@ private fun RidePanel(
     }
 }
 
+/** Extra one-tap alerts behind the panel's "More" toggle (the four main ones stay unchanged). */
+private val EXTRA_ALERTS = listOf(
+    "🍽️ Food stop", "☕ Break", "🔧 Bike trouble", "✅ All good",
+    "🏁 Reached", "🙋 Wait for me", "🚓 Police ahead", "⚠️ Road hazard"
+)
+
 @Composable
-private fun BigButton(label: String, color: Color, modifier: Modifier, filled: Boolean, onClick: () -> Unit) {
+private fun PanelToggle(label: String, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.height(44.dp).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = ChatBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun BigButton(label: String, color: Color, modifier: Modifier, filled: Boolean, fontSize: Int = 18, onClick: () -> Unit) {
     Surface(
         modifier = modifier.clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick),
         shape = RoundedCornerShape(14.dp),
@@ -424,7 +478,7 @@ private fun BigButton(label: String, color: Color, modifier: Modifier, filled: B
         border = BorderStroke(2.dp, color)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(label, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
+            Text(label, color = Color.White, fontSize = fontSize.sp, fontWeight = FontWeight.Black, maxLines = 1)
         }
     }
 }

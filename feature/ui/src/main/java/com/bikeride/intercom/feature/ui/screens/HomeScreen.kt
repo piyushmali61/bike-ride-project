@@ -94,6 +94,8 @@ fun HomeScreen(
     val riderName by viewModel.riderName.collectAsState()
     val bikeModel by viewModel.bikeModel.collectAsState()
     val selectedRoom by viewModel.customRideCode.collectAsState()
+    val myRooms by viewModel.myRooms.collectAsState()
+    var showSosConfirm by remember { mutableStateOf(false) }
     val riderProfile by viewModel.riderProfile.collectAsState()
     val meshUnread by viewModel.meshUnread.collectAsState()
     val meshBtLinks by viewModel.meshBluetoothLinks.collectAsState()
@@ -228,11 +230,9 @@ fun HomeScreen(
                             4 -> showSettingsDialog = true // Settings
                         }
                     },
-                    onSosClick = {
-                        viewModel.triggerEmergencyHorn()
-                        viewModel.sendSos()
-                        Toast.makeText(context, "Convoy SOS broadcast sent!", Toast.LENGTH_SHORT).show()
-                    }
+                    // Confirm first: a bump or glove brushing the bar must not alarm the whole convoy.
+                    // (triggerEmergencyHorn already sends the SOS; calling sendSos too sent it twice.)
+                    onSosClick = { showSosConfirm = true }
                 )
             }
         ) { paddingValues ->
@@ -274,11 +274,12 @@ fun HomeScreen(
                         connectedRiders = connectedRiders.values.toList(),
                         onSelectPreset = { viewModel.setCustomRideCode(it) },
                         onEditRoom = { showRoomDialog = true },
-                        onDeleteConvoy = { showDeleteConvoyConfirm = true }
+                        onDeleteConvoy = { showDeleteConvoyConfirm = true },
+                        myRooms = myRooms
                     )
                 }
 
-                // 2. Connected Riders Section (Rider You Host, Vishal, Unnati, + Invite)
+                // 2. Connected Riders Section (you as host, real connected riders, + Invite)
                 item {
                     ConnectedRidersSection(
                         myRiderName = riderName,
@@ -412,6 +413,34 @@ fun HomeScreen(
     }
 
     // Voice SOS Setup Dialog
+    if (showSosConfirm) {
+        AlertDialog(
+            onDismissRequest = { showSosConfirm = false },
+            containerColor = Color(0xFF131D2D),
+            title = { Text("Send SOS to the convoy?", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Every rider in $selectedRoom hears an alarm and gets your location.",
+                    color = Color(0xFFCBD5E1), fontSize = 15.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSosConfirm = false
+                        viewModel.triggerEmergencyHorn()
+                        Toast.makeText(context, "Convoy SOS broadcast sent!", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) { Text("SEND SOS", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSosConfirm = false }) { Text("CANCEL", color = Color(0xFF94A3B8)) }
+            }
+        )
+    }
+
     if (showVoiceSosSetup) {
         VoiceSosSetupDialog(
             onDismiss = { showVoiceSosSetup = false },
@@ -428,6 +457,9 @@ fun HomeScreen(
                 viewModel.setCustomRideCode(newRoom)
                 showRoomDialog = false
             },
+            myRooms = myRooms,
+            onAddRoom = { viewModel.addMyRoom(it) },
+            onRemoveMyRoom = { viewModel.removeMyRoom(it) },
             onDeleteRoom = { roomToDelete ->
                 coroutineScope.launch {
                     val success = viewModel.deleteConvoy(roomToDelete)
@@ -648,13 +680,11 @@ private fun ConvoyRoomPanel(
     connectedRiders: List<com.bikeride.intercom.transport.local.nearby.ConnectedRider>,
     onSelectPreset: (String) -> Unit,
     onEditRoom: () -> Unit,
-    onDeleteConvoy: () -> Unit
+    onDeleteConvoy: () -> Unit,
+    myRooms: List<String> = emptyList()
 ) {
-    val presets = listOf(
-        "CONVOY 1" to 3,
-        "CONVOY 2" to 0,
-        "SQUAD ALPHA" to 0
-    )
+    // Rider counts are only known for the room we are in, so other chips show no number
+    val presets = (listOf("CONVOY 1", "CONVOY 2", "SQUAD ALPHA") + myRooms).distinct().map { it to 0 }
     val statusDot = when (connectionState) {
         MeshConnectionState.CONNECTED -> Color(0xFF00E676)
         MeshConnectionState.SEARCHING, MeshConnectionState.CONNECTING -> Color(0xFFFBBF24)
@@ -770,7 +800,7 @@ private fun ConvoyRoomPanel(
 
             Spacer(Modifier.height(14.dp))
 
-            // Preset Room Chips row: "CONVOY 1  3", "CONVOY 2  0", "SQUAD ALPHA  0"
+            // Room chips: built-in rooms + rooms the rider saved; live count on the current room
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -786,6 +816,7 @@ private fun ConvoyRoomPanel(
                 allPresets.forEach { (preset, defaultCount) ->
                     val isSelected = preset.equals(roomName, ignoreCase = true)
                     val count = if (isSelected) maxOf(1, connectedRiders.size + 1) else defaultCount
+                    val showCount = isSelected
 
                     Surface(
                         modifier = Modifier
@@ -809,8 +840,8 @@ private fun ConvoyRoomPanel(
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(Modifier.width(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (showCount) Spacer(Modifier.width(8.dp))
+                            if (showCount) Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Filled.Person,
                                     contentDescription = null,
@@ -1648,7 +1679,7 @@ private fun AstraBottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1735,8 +1766,9 @@ private fun BottomNavItem(
 private fun FloatingSosButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
+            // Sits high in the bar (fully visible) with a clear gap above the bottom border
             .offset(y = (-8).dp)
-            .size(58.dp)
+            .size(54.dp)
             .shadow(16.dp, CircleShape, spotColor = Color(0xFFFF1744), ambientColor = Color(0xFFFF2A42))
             .clip(CircleShape)
             .background(
@@ -1866,11 +1898,16 @@ fun RoomSwitchDialog(
     currentRoom: String,
     onDismiss: () -> Unit,
     onSelectRoom: (String) -> Unit,
+    myRooms: List<String> = emptyList(),
+    onAddRoom: ((String) -> Unit)? = null,
+    onRemoveMyRoom: ((String) -> Unit)? = null,
     onDeleteRoom: ((String) -> Unit)? = null
 ) {
     var roomInput by remember { mutableStateOf(currentRoom) }
     var roomToDeleteConfirm by remember { mutableStateOf<String?>(null) }
-    val presets = listOf("CONVOY 1", "CONVOY 2", "SQUAD ALPHA", "SPEED RUN", "WEEKEND TOUR")
+    val presets = com.bikeride.intercom.feature.ui.IntercomViewModel.DEFAULT_ROOMS
+    val canAdd = onAddRoom != null && roomInput.isNotBlank() &&
+        roomInput.trim() !in presets && roomInput.trim() !in myRooms
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1890,18 +1927,62 @@ fun RoomSwitchDialog(
                     fontSize = 13.sp
                 )
                 Spacer(Modifier.height(14.dp))
-                OutlinedTextField(
-                    value = roomInput,
-                    onValueChange = { roomInput = it.uppercase() },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFFFF2A42),
-                        unfocusedBorderColor = Color(0xFF334155)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = roomInput,
+                        onValueChange = { roomInput = it.uppercase().take(24) },
+                        singleLine = true,
+                        placeholder = { Text("Room name", color = Color(0xFF64748B)) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFFFF2A42),
+                            unfocusedBorderColor = Color(0xFF334155)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (onAddRoom != null) {
+                        Spacer(Modifier.width(8.dp))
+                        // Save the typed name as one of "My Rooms"
+                        Button(
+                            onClick = { onAddRoom(roomInput.trim()) },
+                            enabled = canAdd,
+                            contentPadding = PaddingValues(horizontal = 12.dp),
+                            modifier = Modifier.height(52.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF0EA5E9),
+                                disabledContainerColor = Color(0xFF1E293B)
+                            )
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Text("ADD", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                if (myRooms.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text("My Rooms:", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                    Spacer(Modifier.height(6.dp))
+                    myRooms.forEach { room ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "• $room",
+                                color = Color(0xFF38BDF8),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f).clickable { roomInput = room }.padding(vertical = 4.dp)
+                            )
+                            if (onRemoveMyRoom != null) {
+                                IconButton(onClick = { onRemoveMyRoom(room) }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Remove $room", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
                 Text("Preset Rooms:", color = Color(0xFF94A3B8), fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))

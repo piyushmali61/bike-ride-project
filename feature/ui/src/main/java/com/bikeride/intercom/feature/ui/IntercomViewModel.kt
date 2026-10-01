@@ -43,6 +43,9 @@ class IntercomViewModel @Inject constructor(
     companion object {
         /** One-tap convoy alerts on the riding screen and in Mesh Chat. */
         val QUICK_ALERTS = listOf("🐢 Slow down", "👋 Hi", "🛑 Stop", "⛽ Pit stop")
+
+        /** Built-in convoy rooms everyone has. */
+        val DEFAULT_ROOMS = listOf("CONVOY 1", "CONVOY 2", "SQUAD ALPHA", "SPEED RUN", "WEEKEND TOUR")
     }
 
     val connectionState: StateFlow<MeshConnectionState> = meshTransport.state
@@ -87,6 +90,24 @@ class IntercomViewModel @Inject constructor(
 
     private val _customRideCode = MutableStateFlow(prefs.getString("RIDE_CODE", "CONVOY 1") ?: "CONVOY 1")
     val customRideCode: StateFlow<String> = _customRideCode.asStateFlow()
+
+    /** Rooms the rider saved themselves ("My Rooms"), shown with the built-in presets. */
+    private val _myRooms = MutableStateFlow(
+        (prefs.getString("MY_ROOMS", "") ?: "").split("|").filter { it.isNotBlank() }
+    )
+    val myRooms: StateFlow<List<String>> = _myRooms.asStateFlow()
+
+    fun addMyRoom(name: String) {
+        val room = name.trim().uppercase().replace("|", "").take(24)
+        if (room.isBlank() || room in DEFAULT_ROOMS || room in _myRooms.value) return
+        _myRooms.value = _myRooms.value + room
+        prefs.edit().putString("MY_ROOMS", _myRooms.value.joinToString("|")).apply()
+    }
+
+    fun removeMyRoom(name: String) {
+        _myRooms.value = _myRooms.value - name
+        prefs.edit().putString("MY_ROOMS", _myRooms.value.joinToString("|")).apply()
+    }
 
     private val _hasPermissions = MutableStateFlow(false)
     val hasPermissions: StateFlow<Boolean> = _hasPermissions.asStateFlow()
