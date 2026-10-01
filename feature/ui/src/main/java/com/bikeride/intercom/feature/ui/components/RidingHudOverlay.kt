@@ -59,6 +59,7 @@ fun RidingHudOverlay(
     voiceSosLabel: String = "Voice SOS: off",
     voiceSosOn: Boolean = false,
     onToggleVoiceSos: () -> Unit = {},
+    isActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val haptics = LocalHapticFeedback.current
@@ -174,7 +175,7 @@ fun RidingHudOverlay(
                 }
             }
 
-            AudioWaveVisualizer(amplitude = amplitude, isMuted = isMuted, barCount = 13, maxHeight = 44.dp)
+            ChannelQuietCard(isActive = isActive, isMuted = isMuted, amplitude = amplitude)
 
             // ── Mute (centre) ──
             Box(

@@ -66,7 +66,9 @@ fun RideMapScreen(
     onShareLocation: () -> Unit,
     onTriggerSos: () -> Unit,
     onPictureStop: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isActive: Boolean = false,
+    amplitude: Float = 0f
 ) {
     val context = LocalContext.current
     val accentColor = LocalAstraAccent.current
@@ -83,6 +85,7 @@ fun RideMapScreen(
     var searchResults by remember { mutableStateOf<List<RideDestination>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(destination == null) }
+    var confirmSos by remember { mutableStateOf(false) }
 
     // Search query with debounce
     LaunchedEffect(searchQuery) {
@@ -97,6 +100,24 @@ fun RideMapScreen(
     }
 
     BackHandler(onBack = onBack)
+
+    // An SOS alarms every rider in the convoy, so it is confirmed first and sent once
+    if (confirmSos) {
+        AlertDialog(
+            onDismissRequest = { confirmSos = false },
+            containerColor = Color(0xFF131D2D),
+            title = { Text("Send SOS to the convoy?", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = { Text("Every rider hears an alarm and gets your location.", color = Color(0xFFCBD5E1), fontSize = 15.sp) },
+            confirmButton = {
+                Button(
+                    onClick = { confirmSos = false; onTriggerSos() },
+                    modifier = Modifier.height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) { Text("SEND SOS", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp) }
+            },
+            dismissButton = { TextButton(onClick = { confirmSos = false }) { Text("CANCEL", color = Color(0xFF94A3B8)) } }
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF090D16))) {
         // ── 1. Interactive Slippy OpenStreetMap Canvas ──
@@ -232,6 +253,11 @@ fun RideMapScreen(
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Voice activity, same card as the home screen
+            com.bikeride.intercom.feature.ui.components.ChannelQuietCard(
+                isActive = isActive, isMuted = isMuted, amplitude = amplitude
+            )
+
             // Live Navigation Info Card (Remaining Distance & ETA)
             if (destination != null) {
                 Surface(
@@ -344,7 +370,7 @@ fun RideMapScreen(
                             label = "🆘 SOS",
                             color = Color(0xFFFF1744),
                             modifier = Modifier.weight(1f),
-                            onClick = onTriggerSos
+                            onClick = { confirmSos = true }
                         )
                         NavActionButton(
                             icon = Icons.Filled.PhotoCamera,

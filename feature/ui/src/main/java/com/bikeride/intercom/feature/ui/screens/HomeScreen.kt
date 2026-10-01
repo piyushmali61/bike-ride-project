@@ -41,6 +41,7 @@ import com.bikeride.intercom.feature.ui.IntercomViewModel
 import com.bikeride.intercom.feature.ui.R
 import com.bikeride.intercom.feature.ui.components.AppearanceSection
 import com.bikeride.intercom.feature.ui.components.AudioWaveVisualizer
+import com.bikeride.intercom.feature.ui.components.ChannelQuietCard
 import com.bikeride.intercom.feature.ui.components.RidingHudOverlay
 import com.bikeride.intercom.mesh.ConvoyMesh
 import com.bikeride.intercom.mesh.RiderProfile
@@ -96,6 +97,7 @@ fun HomeScreen(
     val selectedRoom by viewModel.customRideCode.collectAsState()
     val myRooms by viewModel.myRooms.collectAsState()
     var showSosConfirm by remember { mutableStateOf(false) }
+    var showHudChooser by remember { mutableStateOf(false) }
     val riderProfile by viewModel.riderProfile.collectAsState()
     val meshUnread by viewModel.meshUnread.collectAsState()
     val meshBtLinks by viewModel.meshBluetoothLinks.collectAsState()
@@ -152,7 +154,9 @@ fun HomeScreen(
     // Full-Screen OLED Handlebar HUD
     if (isRidingHudOpen) {
         RidingHudOverlay(
-            roomName = currentRoom,
+            isActive = connectionState != MeshConnectionState.IDLE && connectionState != MeshConnectionState.DISCONNECTED,
+            // Room of the running ride, or the selected room before a ride starts
+            roomName = if (connectionState == MeshConnectionState.IDLE || connectionState == MeshConnectionState.DISCONNECTED) selectedRoom else currentRoom,
             bikerCount = maxOf(1, connectedRiders.size + 1),
             isMuted = isMuted,
             onToggleMute = { viewModel.toggleMute() },
@@ -329,7 +333,7 @@ fun HomeScreen(
                         connectionState = connectionState,
                         bikeModel = bikeModel,
                         onToggleRide = { viewModel.onOneClickConnectToggle() },
-                        onOpenHud = onOpenMap,
+                        onOpenHud = { showHudChooser = true },
                         onAlertHorn = {
                             viewModel.triggerEmergencyHorn()
                             Toast.makeText(context, "Sounding Alert Horn!", Toast.LENGTH_SHORT).show()
@@ -413,6 +417,14 @@ fun HomeScreen(
     }
 
     // Voice SOS Setup Dialog
+    if (showHudChooser) {
+        LiveHudChooserDialog(
+            onDismiss = { showHudChooser = false },
+            onWithMap = { showHudChooser = false; onOpenMap() },
+            onHudOnly = { showHudChooser = false; viewModel.toggleRidingHud(true) }
+        )
+    }
+
     if (showSosConfirm) {
         AlertDialog(
             onDismissRequest = { showSosConfirm = false },
@@ -1206,83 +1218,6 @@ private fun HandsFreeControlCard(
 // ═══════════════════════════════════════════════════════════════════
 // 5. CHANNEL QUIET CARD
 // ═══════════════════════════════════════════════════════════════════
-
-@Composable
-private fun ChannelQuietCard(
-    isActive: Boolean,
-    isMuted: Boolean,
-    amplitude: Float
-) {
-    val isSpeaking = isActive && !isMuted && amplitude > 0.05f
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF131D2D).copy(alpha = 0.88f)),
-        border = BorderStroke(1.dp, Color(0xFF1E2D42))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF0C2538)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.GraphicEq,
-                        contentDescription = null,
-                        tint = Color(0xFF00E5FF),
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = if (isSpeaking) "VOICE ACTIVE" else "CHANNEL QUIET",
-                        color = Color(0xFF00E5FF),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.6.sp
-                    )
-                    Text(
-                        text = if (isSpeaking) "Speaking to convoy..." else "No incoming audio",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 11.5.sp
-                    )
-                }
-            }
-
-            if (isSpeaking) {
-                AudioWaveVisualizer(
-                    amplitude = amplitude,
-                    isMuted = false,
-                    barCount = 10,
-                    maxHeight = 20.dp,
-                    modifier = Modifier.width(120.dp)
-                )
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    repeat(10) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF2DD4BF))
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // 6. CENTRAL RADIAL COCKPIT ACTION CLUSTER
@@ -2124,4 +2059,41 @@ private fun AstraSettingsDialog(onDismiss: () -> Unit) {
             }
         }
     )
+}
+
+/** Live HUD: choose the map view or the buttons-only riding screen. */
+@Composable
+private fun LiveHudChooserDialog(onDismiss: () -> Unit, onWithMap: () -> Unit, onHudOnly: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF131D2D),
+        title = { Text("Open Live HUD", color = Color.White, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HudChoice(Icons.Filled.Map, "Live HUD with Map", "Navigation map with ride controls", Color(0xFF00E5FF), onWithMap)
+                HudChoice(Icons.Filled.TouchApp, "Live HUD only", "Big ride buttons, no map", Color(0xFF00E676), onHudOnly)
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL", color = Color(0xFF94A3B8)) } }
+    )
+}
+
+@Composable
+private fun HudChoice(icon: ImageVector, title: String, subtitle: String, tint: Color, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFF172336),
+        border = BorderStroke(1.5.dp, tint.copy(alpha = 0.6f))
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(30.dp))
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(subtitle, color = Color(0xFF94A3B8), fontSize = 13.sp)
+            }
+        }
+    }
 }

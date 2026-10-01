@@ -25,6 +25,9 @@ fun IntercomApp(
 
     val riderName by viewModel.riderName.collectAsState()
     val isMuted by viewModel.isMuted.collectAsState()
+    val connectionState by viewModel.connectionState.collectAsState()
+    val micAmplitude by viewModel.micAmplitude.collectAsState()
+    val peerAmplitude by viewModel.peerAmplitude.collectAsState()
 
     when (currentScreen) {
         "chat" -> {
@@ -41,7 +44,10 @@ fun IntercomApp(
                 onShareLocation = { viewModel.shareMyLocation() },
                 onTriggerSos = { viewModel.triggerEmergencyHorn() },
                 onPictureStop = { showPictureStop = true },
-                onBack = { currentScreen = "home" }
+                onBack = { currentScreen = "home" },
+                isActive = connectionState != com.bikeride.intercom.transport.local.nearby.MeshConnectionState.IDLE &&
+                    connectionState != com.bikeride.intercom.transport.local.nearby.MeshConnectionState.DISCONNECTED,
+                amplitude = if (micAmplitude > 0.05f) micAmplitude else peerAmplitude
             )
         }
         else -> {

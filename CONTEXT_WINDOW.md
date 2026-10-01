@@ -6,7 +6,7 @@
 
 - **Repo:** https://github.com/piyushmali61/bike-ride-project
 - **Local path (Aayush):** `C:\Users\aayus\Downloads\bike-ride-project`
-- **Current version:** 1.5.2 (versionCode 8) — bump both in `app/build.gradle.kts` on every release
+- **Current version:** 1.5.3 (versionCode 9) — bump both in `app/build.gradle.kts` on every release
 - **Last updated:** 2026-10-01
 
 ---
@@ -63,6 +63,7 @@ AstraRide is an Android motorcycle **convoy intercom + offline messaging** app (
 | Voice SOS ("SOS" twice) | ✅ Engine verified (19/19 on synthesized speech); ⚠️ not tested with a real voice in wind |
 | Read-aloud announcements | ✅ |
 | Riding HUD: double-tap mute, Slow down / Hi / Stop / Pit stop, Horn, Location, Speaker | ✅ |
+| Live HUD chooser: **with Map** (`RideMapScreen`) or **HUD only** (`RidingHudOverlay`); both show the shared `ChannelQuietCard` voice-activity card | ✅ |
 | Mesh Chat panel: SOS + Location always visible; alerts Hide/Show; More (8 extra alerts) | ✅ |
 | My Rooms (riders add their own rooms in the Room dialog) | ✅ |
 | Permanent delete of messages / convoy history | ✅ |
@@ -74,6 +75,7 @@ AstraRide is an Android motorcycle **convoy intercom + offline messaging** app (
 
 | Version | Commit | Who | What |
 |---|---|---|---|
+| 1.5.3 | (this commit) | Aayush | Live HUD chooser (with Map / HUD only); `ChannelQuietCard` moved to `components/` and shown in both HUDs; map SOS now asks for confirmation; HUD shows the selected room before a ride |
 | 1.5.2 | `87379b0` | Aayush | Floating SOS spacing fixed + confirm dialog (it sent twice, no confirm); My Rooms; collapsible Mesh Chat alerts + More; no fake room counts |
 | 1.5.1 | `e518b2c` | Aayush | Old SOS from history no longer sounds the alarm on launch; removed fake riders "Vishal/Unnati"; deletes made permanent; fixed misleading "Say MUTE" guide text |
 | 1.5.0+ | `b05a899`, `cb75df4` | Piyush | Cockpit UI redesign, map/navigation, Picture Stop, delete convoy/message, bike profile, smart arrival |
