@@ -902,17 +902,13 @@ private fun ConnectedRidersSection(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("👑", fontSize = 10.sp)
                     Spacer(Modifier.width(2.dp))
-                    Text("Rider (You)", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("$myRiderName (You)", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
                 Text("Host", color = Color(0xFF00E676), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
             }
 
-            // Real peers or standby riders matching screenshot
-            val displayPeers = if (connectedRiders.isNotEmpty()) {
-                connectedRiders.map { it.name }
-            } else {
-                listOf("Vishal", "Unnati")
-            }
+            // Only real connected riders — never placeholder names, or riders think someone is listening
+            val displayPeers = connectedRiders.map { it.name }
 
             displayPeers.forEach { peerName ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1605,7 +1601,7 @@ private fun IntercomGuideCard() {
                 Column(modifier = Modifier.weight(1f)) {
                     GuideStepItem("3", "They auto-link into full-duplex intercom")
                     Spacer(Modifier.height(10.dp))
-                    GuideStepItem("4", "Say \"MUTE\" while riding to mute anytime")
+                    GuideStepItem("4", "Double-tap the riding screen to mute · say \"SOS\" twice for help")
                 }
             }
         }

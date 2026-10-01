@@ -64,11 +64,15 @@ class MeshRouter(
         return buffer.values.toList()
     }
 
-    /** Removes a specific message key from replay buffer and seen set so it never reappears. */
+    /**
+     * Stops replaying a deleted message. It stays in the seen set on purpose: if it were removed,
+     * the same packet arriving again from a neighbour or the internet relays would be accepted as
+     * new and the deleted message would come back.
+     */
     @Synchronized
     fun forget(key: String) {
         buffer.remove(key)
-        seen.remove(key)
+        seen[key] = now()
     }
 
     /** Purges all packets for a deleted room from buffer and seen set. */
@@ -77,7 +81,7 @@ class MeshRouter(
         val keys = buffer.values.filter { it.roomTag == roomTag }.map { it.key }
         keys.forEach { key ->
             buffer.remove(key)
-            seen.remove(key)
+            seen[key] = now() // keep as seen so a deleted room's history is not re-imported
         }
     }
 

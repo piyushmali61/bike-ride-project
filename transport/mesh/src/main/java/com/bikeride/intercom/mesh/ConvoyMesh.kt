@@ -119,6 +119,7 @@ class ConvoyMesh @Inject constructor(
 
         val stored = store.load(newCipher.tag)
         stored.forEach { router.markSeen(it.key) }
+        deletedKeys().forEach { router.markSeen(it) }
         _messages.value = stored
         // Store-and-forward survives restarts: our recent messages go back into the replay buffer.
         stored.filter { it.isMine && it.rawPacket != null }.forEach { msg ->
@@ -131,12 +132,24 @@ class ConvoyMesh @Inject constructor(
         }
     }
 
+    private fun deletedBefore(roomTag: Int): Long = prefs.getLong(KEY_DELETED_BEFORE + roomTag, 0L)
+
+    private fun deletedKeys(): List<String> =
+        prefs.getString(KEY_DELETED_KEYS, "")!!.split(",").filter { it.isNotBlank() }
+
+    private fun rememberDeleted(key: String) {
+        val keys = (deletedKeys() + key).distinct().takeLast(MAX_DELETED_KEYS)
+        prefs.edit().putString(KEY_DELETED_KEYS, keys.joinToString(",")).apply()
+    }
+
     suspend fun deleteConvoyData(code: String = _room.value): Boolean = withContext(Dispatchers.IO) {
         try {
             val normalized = RoomCipher.normalize(code)
             val roomCipher = RoomCipher(normalized)
             val deleted = store.deleteRoom(roomCipher.tag)
             router.clearRoom(roomCipher.tag)
+            // Persist the deletion: anything older than now in this room is ignored if it is re-sent
+            prefs.edit().putLong(KEY_DELETED_BEFORE + roomCipher.tag, System.currentTimeMillis()).apply()
             if (normalized.equals(_room.value, ignoreCase = true)) {
                 _messages.value = emptyList()
                 _unread.value = 0
@@ -156,6 +169,7 @@ class ConvoyMesh @Inject constructor(
                 try { File(path).delete() } catch (_: Exception) {}
             }
             router.forget(messageKey)
+            rememberDeleted(messageKey)
             val deleted = cipher?.let { store.deleteMessage(it.tag, messageKey) } ?: false
             _messages.value = _messages.value.filterNot { it.key == messageKey }
             deleted
@@ -468,6 +482,8 @@ class ConvoyMesh @Inject constructor(
 
         val c = cipher ?: return
         if (packet.roomTag != c.tag) return
+        // Deleted history must not come back from relays or neighbours (checked before bridging)
+        if (packet.timestamp < deletedBefore(c.tag) || packet.key in deletedKeys()) return
 
         // 2. Bridge: offline riders' messages go up to the internet through us.
         if (sourceLink != INTERNET_LINK && packet.type != MeshType.PROFILE) nostr.publish(bytes)
@@ -522,7 +538,8 @@ class ConvoyMesh @Inject constructor(
                 addMessage(msg)
                 touchPeer(packet.senderId, _peers.value[packet.senderId]?.profile ?: RiderProfile(name = name), via, hops)
                 if (!chatVisible) _unread.value += 1
-                if (packet.type == MeshType.SOS) _incomingSos.tryEmit(msg)
+                // Only a fresh SOS sounds the alarm; old ones synced from history stay silent
+                if (packet.type == MeshType.SOS && isFresh(packet)) _incomingSos.tryEmit(msg)
                 if (isFresh(packet)) _incoming.tryEmit(msg)
                 // Delivery receipt back to the sender, over whichever path works.
                 originate(
@@ -676,5 +693,8 @@ class ConvoyMesh @Inject constructor(
         private const val KEY_BIKE_PLATE = "profile_bike_plate"
         private const val KEY_BIKE_IMAGE = "profile_bike_image"
         private const val KEY_NOSTR = "nostr_secret"
+        private const val KEY_DELETED_BEFORE = "deleted_before_"
+        private const val KEY_DELETED_KEYS = "deleted_keys"
+        private const val MAX_DELETED_KEYS = 1000
     }
 }
