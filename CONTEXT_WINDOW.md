@@ -6,7 +6,7 @@
 
 - **Repo:** https://github.com/piyushmali61/bike-ride-project
 - **Local path (Aayush):** `C:\Users\aayus\Downloads\bike-ride-project`
-- **Current version:** 1.5.3 (versionCode 9) — bump both in `app/build.gradle.kts` on every release
+- **Current version:** 1.5.4 (versionCode 10) — bump both in `app/build.gradle.kts` on every release
 - **Last updated:** 2026-10-01
 
 ---
@@ -75,6 +75,7 @@ AstraRide is an Android motorcycle **convoy intercom + offline messaging** app (
 
 | Version | Commit | Who | What |
 |---|---|---|---|
+| 1.5.4 | (this commit) | Aayush | Map locate/zoom buttons sit in a row just above the bottom panel (they overlapped the voice card when a destination was set) |
 | 1.5.3 | (this commit) | Aayush | Live HUD chooser (with Map / HUD only); `ChannelQuietCard` moved to `components/` and shown in both HUDs; map SOS now asks for confirmation; HUD shows the selected room before a ride |
 | 1.5.2 | `87379b0` | Aayush | Floating SOS spacing fixed + confirm dialog (it sent twice, no confirm); My Rooms; collapsible Mesh Chat alerts + More; no fake room counts |
 | 1.5.1 | `e518b2c` | Aayush | Old SOS from history no longer sounds the alarm on launch; removed fake riders "Vishal/Unnati"; deletes made permanent; fixed misleading "Say MUTE" guide text |

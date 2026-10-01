@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bikeride.intercom.feature.ui.theme.LocalAstraAccent
@@ -68,7 +69,9 @@ fun InteractiveRideMap(
     destination: RideDestination?,
     modifier: Modifier = Modifier,
     onMapTap: ((lat: Double, lon: Double) -> Unit)? = null,
-    isNavigationActive: Boolean = false
+    isNavigationActive: Boolean = false,
+    /** Height of panels drawn over the bottom of the map; controls stay just above them. */
+    controlsBottomPadding: Dp = 0.dp
 ) {
     val context = LocalContext.current
     val accentColor = LocalAstraAccent.current
@@ -299,12 +302,13 @@ fun InteractiveRideMap(
             }
         }
 
-        // Floating Map Controls: Center on Me, Zoom In, Zoom Out
-        Column(
+        // Floating Map Controls: Center on Me, Zoom In, Zoom Out.
+        // A single row sitting just above the bottom panel, so a tall panel never covers them.
+        Row(
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = controlsBottomPadding + 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             IconButton(
                 onClick = {

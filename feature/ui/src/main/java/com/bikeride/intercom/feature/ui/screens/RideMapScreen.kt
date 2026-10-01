@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -86,6 +87,9 @@ fun RideMapScreen(
     var isSearching by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(destination == null) }
     var confirmSos by remember { mutableStateOf(false) }
+    // Measured so the map's zoom / locate buttons can sit just above the bottom panel
+    var bottomPanelHeightPx by remember { mutableIntStateOf(0) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
 
     // Search query with debounce
     LaunchedEffect(searchQuery) {
@@ -127,6 +131,7 @@ fun RideMapScreen(
             destination = destination,
             modifier = Modifier.fillMaxSize(),
             isNavigationActive = isNavigating,
+            controlsBottomPadding = with(density) { bottomPanelHeightPx.toDp() },
             onMapTap = { tapLat, tapLon ->
                 scope.launch {
                     val placeName = geocoder.reverseGeocode(tapLat, tapLon) ?: "Pinned Location"
@@ -249,6 +254,7 @@ fun RideMapScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .onSizeChanged { bottomPanelHeightPx = it.height }
                 .navigationBarsPadding()
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
