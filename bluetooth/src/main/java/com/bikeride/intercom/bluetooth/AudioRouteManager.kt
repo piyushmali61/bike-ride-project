@@ -50,11 +50,69 @@ class AudioRouteManager @Inject constructor(
             Timber.w(e, "Failed to register SCO receiver")
         }
         updateBluetoothState()
-        // Default to Bluetooth if already connected, else Loudspeaker
-        if (_isBluetoothConnected.value) {
-            setRoute(AudioRouteType.HELMET_BLUETOOTH)
-        } else {
-            setRoute(AudioRouteType.LOUDSPEAKER)
+        // Default to Bluetooth if already connected, else Loudspeaker. Applied when a ride starts
+        // (beginRideAudio), not at app launch, so the app does not hold the phone in call mode.
+        _currentRoute.value = if (_isBluetoothConnected.value) AudioRouteType.HELMET_BLUETOOTH else AudioRouteType.LOUDSPEAKER
+    }
+
+    private var focusRequest: android.media.AudioFocusRequest? = null
+
+    /**
+     * Starts a call-style audio session for a ride: takes audio focus, switches the phone into
+     * communication mode, re-applies the chosen output (speaker / earpiece / helmet) and makes sure
+     * the call volume is not at zero. Without this, phones (especially Samsung) can play the
+     * incoming voice to no output at all.
+     */
+    fun beginRideAudio() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val req = android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(
+                        android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build()
+                    )
+                    .setAcceptsDelayedFocusGain(false)
+                    .setOnAudioFocusChangeListener { }
+                    .build()
+                focusRequest = req
+                val result = audioManager.requestAudioFocus(req)
+                Timber.i("Ride audio focus: ${if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) "granted" else "denied ($result)"}")
+            }
+            // Call volume at 0 makes the intercom silent; raise it to a usable level
+            val stream = AudioManager.STREAM_VOICE_CALL
+            val max = audioManager.getStreamMaxVolume(stream)
+            if (audioManager.getStreamVolume(stream) < max / 2) {
+                audioManager.setStreamVolume(stream, (max * 0.8).toInt().coerceAtLeast(1), 0)
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "Could not start ride audio session")
+        }
+        updateBluetoothState()
+        setRoute(_currentRoute.value)
+    }
+
+    /** Ends the ride audio session so the phone's normal sound (music, calls) is restored. */
+    fun endRideAudio() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+            }
+            focusRequest = null
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                audioManager.clearCommunicationDevice()
+            } else {
+                @Suppress("DEPRECATION")
+                run {
+                    audioManager.stopBluetoothSco()
+                    audioManager.isBluetoothScoOn = false
+                    audioManager.isSpeakerphoneOn = false
+                }
+            }
+            audioManager.mode = AudioManager.MODE_NORMAL
+        } catch (e: Exception) {
+            Timber.w(e, "Could not end ride audio session")
         }
     }
 
@@ -109,6 +167,8 @@ class AudioRouteManager @Inject constructor(
                         }
                     }
                     AudioRouteType.LOUDSPEAKER -> {
+                        @Suppress("DEPRECATION")
+                        audioManager.isSpeakerphoneOn = true
                         val speakerDevice = audioManager.availableCommunicationDevices.firstOrNull {
                             it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
                         }

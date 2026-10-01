@@ -256,6 +256,7 @@ class IntercomService : Service() {
     private fun startRide(rideCode: String?) {
         isRunning = true
         acquireWakeLock()
+        audioRouteManager.beginRideAudio() // focus + call mode + speaker/earpiece/helmet route
         audioEngine.start(serviceScope)
         meshTransport.startOneClickMesh(serviceScope, rideCode)
         voiceCommandDetector.startListening()
@@ -265,6 +266,7 @@ class IntercomService : Service() {
         isRunning = false
         voiceCommandDetector.stopListening()
         audioEngine.stop()
+        audioRouteManager.endRideAudio()
         meshTransport.disconnect()
         releaseLocks()
         stopForeground(STOP_FOREGROUND_REMOVE)
