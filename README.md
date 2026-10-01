@@ -9,16 +9,16 @@
 
 [![Studio](https://img.shields.io/badge/Crafted%20By-Mythic%20Bharat%20Studios-orange?style=for-the-badge&logo=android)](https://github.com/piyushmali61)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B%20(API%2029--35)-brightgreen?style=for-the-badge&logo=android)](https://android.com)
-[![Release](https://img.shields.io/badge/Version-1.5.5--Release-blue?style=for-the-badge&logo=github)](https://github.com/piyushmali61/bike-ride-project/releases/tag/v1.0.0)
+[![Release](https://img.shields.io/badge/Version-1.5.5--Release-blue?style=for-the-badge&logo=github)](https://github.com/piyushmali61/bike-ride-project/commits/main/AstraRide-Intercom.apk)
 [![Battery](https://img.shields.io/badge/Battery-VAD%20%2B%20DTX%20Optimized-success?style=for-the-badge&logo=speedtest)](https://github.com/piyushmali61/bike-ride-project)
 [![Mesh](https://img.shields.io/badge/Mesh-Multi--Biker%20Cluster-purple?style=for-the-badge&logo=bluetooth)](https://github.com/piyushmali61/bike-ride-project)
 
 <br/>
 
-### 📲 [DIRECT MOBILE APK DOWNLOAD](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk)
+### 📲 [DIRECT MOBILE APK DOWNLOAD](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk?v=1.5.5)
 **Get the production release Android application directly on your phone:**
 
-<a href="https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk">
+<a href="https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk?v=1.5.5">
   <img src="https://img.shields.io/badge/DOWNLOAD%20ASTRARIDE%20INTERCOM-RELEASE%20APK%20(40.9%20MB)-0284c7?style=for-the-badge&logo=android&logoColor=white" height="48" />
 </a>
 
@@ -196,7 +196,7 @@ To ensure your phone's battery lasts throughout long touring days without draini
 ## 📦 Direct APK Installation
 
 ### 1. Download Link
-* 🚀 [**AstraRide-Intercom.apk**](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk) *(40.9 MB, Optimized Production Release)*
+* 🚀 [**AstraRide-Intercom.apk**](https://github.com/piyushmali61/bike-ride-project/raw/main/AstraRide-Intercom.apk?v=1.5.5) *(40.9 MB, v1.5.5, Optimized Production Release)*
 
 ### 2. Quick Install via USB (ADB)
 ```powershell

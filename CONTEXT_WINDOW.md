@@ -107,6 +107,7 @@ $env:JAVA_HOME="$env:USERPROFILE\.jdks\jbr-17.0.14"
 .\gradlew.bat :transport:mesh:testDebugUnitTest :transport:local-nearby:testDebugUnitTest   # unit tests
 .\gradlew.bat :app:assembleDebug     # emulator / dev build (package com.bikeride.intercom.debug)
 .\gradlew.bat :app:assembleRelease   # phone build → copy to AstraRide-Intercom.apk for the README download link
+# then bump ?v=<version> on every APK link in README.md (stops phones downloading a cached old APK)
 ```
 
 `local.properties` (not committed) needs `sdk.dir=C:/Users/<you>/AppData/Local/Android/Sdk`.
